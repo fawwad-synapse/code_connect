@@ -95,6 +95,11 @@ async def test_report_intake_and_idempotency():
         d1 = resp1.json()
         assert {"parsed_data", "created_at", "is_duplicate"} <= d1.keys()
 
+        filtered = await client.get(f"/api/v1/reports?cluster_id={d1['cluster_id']}")
+        assert filtered.status_code == 200
+        assert filtered.json()["reports"]
+        assert all(report["cluster_id"] == d1["cluster_id"] for report in filtered.json()["reports"])
+
         # Duplicate submission with identical idempotency key
         resp2 = await client.post("/api/v1/reports", json=payload, headers=headers)
         assert resp2.status_code == 200

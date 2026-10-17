@@ -185,11 +185,12 @@ async def list_reports(
             reported_at, confidence, cluster_id, verified, photo_url,
             COUNT(*) OVER (PARTITION BY cluster_id) > 1 AS is_duplicate
         FROM reports
+        WHERE (CAST(:cluster_id AS VARCHAR) IS NULL OR cluster_id = CAST(:cluster_id AS VARCHAR))
         ORDER BY reported_at DESC
         LIMIT :limit;
     """)
 
-    res = await db.execute(query, {"limit": limit})
+    res = await db.execute(query, {"limit": limit, "cluster_id": cluster_id})
     rows = res.fetchall()
 
     reports = []
