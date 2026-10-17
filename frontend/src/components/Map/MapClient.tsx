@@ -195,7 +195,7 @@ export function MapClient({
             >
               <Popup>
                 <div className="text-xs text-slate-100">
-                  <div className="font-bold text-rose-400 mb-1">🚫 {road.name}</div>
+                  <div className="font-bold text-rose-400 mb-1">Road closure: {road.name}</div>
                   <div>Status: {road.status.toUpperCase()}</div>
                   <div>Inundation Depth: {road.depth_m}m</div>
                 </div>
@@ -209,7 +209,7 @@ export function MapClient({
             <Marker key={s.id} position={[s.location.lat, s.location.lng]}>
               <Popup>
                 <div className="text-xs text-slate-100">
-                  <div className="font-bold text-blue-400 mb-1">🏛️ {s.name}</div>
+                  <div className="font-bold text-blue-400 mb-1">Shelter: {s.name}</div>
                   <div>Capacity: {s.capacity} beds</div>
                   <div>Occupancy: {s.current_occupancy} ({s.occupancy_rate}%)</div>
                   <div>Accessible: {s.accessible ? "Yes (Ground Accessible)" : "Restricted Access"}</div>
@@ -225,7 +225,7 @@ export function MapClient({
               <Popup>
                 <div className="text-xs text-slate-100">
                   <div className="font-bold text-emerald-400 mb-1">
-                    {r.type === "boat" ? "🚤" : r.type === "ambulance" ? "🚑" : "🚒"} {r.name}
+                    Rescue unit: {r.name}
                   </div>
                   <div>Type: {r.type.toUpperCase()}</div>
                   <div>Capacity: {r.capacity} persons</div>

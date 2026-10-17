@@ -140,8 +140,8 @@ export function PriorityList({ priorities, onSelectPriority, selectedId }: Props
                           <HeartPulse className="w-2.5 h-2.5" /> Medical
                         </span>
                       )}
-                      {item.lives_alone && <span>• Alone</span>}
-                      {item.mobility_impaired && <span>• Immobile</span>}
+                      {item.lives_alone && <span>Alone</span>}
+                      {item.mobility_impaired && <span>Immobile</span>}
                     </div>
 
                     <div className="pt-0.5">

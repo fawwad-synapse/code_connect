@@ -224,7 +224,7 @@ export function ResourceBoard() {
                     </div>
                     <div className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
                       <span>Type: {res.type}</span>
-                      <span>•</span>
+                      <span>|</span>
                       <span>Cap: {res.capacity} pers</span>
                     </div>
                   </div>
@@ -339,11 +339,11 @@ export function ResourceBoard() {
                         <Clock className="w-3.5 h-3.5 text-blue-400" />
                         ETA ~{asgn.transit_time_min} mins
                       </span>
-                      <span>•</span>
+                      <span>|</span>
                       <span>Priority Score: <strong className="text-rose-400">{asgn.priority_score.toFixed(1)}</strong></span>
-                      <span>•</span>
+                      <span>|</span>
                       <span className={asgn.medical_matched ? "text-emerald-400 font-medium" : "text-slate-400"}>
-                        {asgn.medical_matched ? "✓ Medical Certified Match" : "Standard Evacuation"}
+                        {asgn.medical_matched ? "Medical Certified Match" : "Standard Evacuation"}
                       </span>
                     </div>
 
@@ -419,7 +419,7 @@ export function ResourceBoard() {
                 onClick={() => setOverrideModalOpen(false)}
                 className="text-slate-400 hover:text-white text-sm font-mono"
               >
-                ✕
+                X
               </button>
             </div>
 

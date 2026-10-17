@@ -252,7 +252,7 @@ export default function OperationsCenterPage() {
                 <div className="flex items-center justify-between text-[10px] text-slate-400">
                   <div className="flex items-center gap-2">
                     <span>Vuln: {(item.vulnerability_index * 100).toFixed(0)}%</span>
-                    <span>•</span>
+                    <span>|</span>
                     <span>Gap: {(item.warning_gap * 100).toFixed(0)}%</span>
                   </div>
                   <ConfidenceBadge
