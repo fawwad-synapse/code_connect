@@ -89,12 +89,13 @@ async def test_report_intake_and_idempotency():
         resp1 = await client.post("/api/v1/reports", json=payload, headers=headers)
         assert resp1.status_code == 200
         d1 = resp1.json()
+        assert {"parsed_data", "created_at", "is_duplicate"} <= d1.keys()
 
         # Duplicate submission with identical idempotency key
         resp2 = await client.post("/api/v1/reports", json=payload, headers=headers)
         assert resp2.status_code == 200
         d2 = resp2.json()
-        assert d2.get("is_duplicate_submission") is True
+        assert d2["is_duplicate"] is True
 
 
 @pytest.mark.asyncio

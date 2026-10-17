@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from app.db.session import get_db
-from app.schemas.report import ReportCreate, ReportResponse
+from app.schemas.report import ReportCreate, ReportListResponse, ReportResponse
 from app.agents.pipeline import report_pipeline
 from app.api.v1.ws import ws_manager
 from app.services.dedupe import find_matching_cluster
@@ -18,7 +18,19 @@ def duplicate_candidate_cutoff(now: datetime) -> datetime:
     return now - timedelta(hours=2)
 
 
-@router.post("/reports")
+def report_parsed_data(parsed: object) -> dict:
+    """Expose parser output using the report-feed field names."""
+    data = parsed if isinstance(parsed, dict) else {}
+    return {
+        "hazard_type": data.get("hazard_type", "flood"),
+        "water_depth_m": data.get("water_depth_m", data.get("water_depth_est_m")),
+        "trapped_count": data.get("trapped_count"),
+        "medical_need": data.get("medical_need", data.get("medical_emergency", False)),
+        "language_detected": data.get("language_detected"),
+    }
+
+
+@router.post("/reports", response_model=ReportResponse)
 async def create_report(
     report_in: ReportCreate,
     x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
@@ -40,11 +52,15 @@ async def create_report(
                 "id": existing[0],
                 "source": existing[1],
                 "raw_text": existing[2],
-                "parsed": existing[3],
+                "status": "processed",
+                "parsed_data": report_parsed_data(existing[3]),
+                "location": None,
+                "created_at": now,
                 "confidence": existing[4],
                 "cluster_id": existing[5],
+                "is_duplicate": True,
                 "verified": existing[6],
-                "is_duplicate_submission": True,
+                "photo_url": None,
             }
 
     # 2. Fetch recent reports for spatial & semantic deduplication
@@ -80,7 +96,7 @@ async def create_report(
         "report_id": report_id,
         "source": report_in.source,
         "raw_text": report_in.raw_text,
-        "location": {"lon": report_in.lng, "lat": report_in.lat} if report_in.lng else None,
+        "location": {"lon": report_in.lng, "lat": report_in.lat} if report_in.lng is not None and report_in.lat is not None else None,
         "zone_id": None,
         "parsed_data": None,
         "cluster_id": cluster_id,
@@ -100,7 +116,7 @@ async def create_report(
         confidence = min(0.95, confidence + 0.15)
 
     # 5. Insert into Database
-    geom_wkt = f"SRID=4326;POINT({report_in.lng} {report_in.lat})" if report_in.lng and report_in.lat else None
+    geom_wkt = f"SRID=4326;POINT({report_in.lng} {report_in.lat})" if report_in.lng is not None and report_in.lat is not None else None
     insert_q = text("""
         INSERT INTO reports (
             id, source, raw_text, parsed, location, reported_at, received_at,
@@ -136,21 +152,27 @@ async def create_report(
         "raw_text": report_in.raw_text,
         "cluster_id": cluster_id,
         "confidence": confidence,
-        "parsed": parsed,
-        "location": {"lng": report_in.lng, "lat": report_in.lat} if report_in.lng else None,
+        "parsed_data": report_parsed_data(parsed),
+        "location": {"lng": report_in.lng, "lat": report_in.lat} if report_in.lng is not None and report_in.lat is not None else None,
     })
 
     return {
         "id": report_id,
+        "source": report_in.source,
+        "raw_text": report_in.raw_text,
+        "status": "clustered" if cluster_match else "processed",
+        "parsed_data": report_parsed_data(parsed),
+        "location": {"lng": report_in.lng, "lat": report_in.lat} if report_in.lng is not None and report_in.lat is not None else None,
+        "created_at": now,
         "cluster_id": cluster_id,
         "confidence": confidence,
-        "is_clustered": cluster_match is not None,
-        "parsed": parsed,
-        "message": "Report ingested and parsed successfully",
+        "is_duplicate": cluster_match is not None,
+        "verified": report_in.source == "volunteer",
+        "photo_url": report_in.photo_url,
     }
 
 
-@router.get("/reports")
+@router.get("/reports", response_model=ReportListResponse)
 async def list_reports(
     cluster_id: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=200),
@@ -160,7 +182,8 @@ async def list_reports(
         SELECT 
             id, source, raw_text, parsed, 
             ST_X(location) as lng, ST_Y(location) as lat,
-            reported_at, confidence, cluster_id, verified, photo_url
+            reported_at, confidence, cluster_id, verified, photo_url,
+            COUNT(*) OVER (PARTITION BY cluster_id) > 1 AS is_duplicate
         FROM reports
         ORDER BY reported_at DESC
         LIMIT :limit;
@@ -175,13 +198,15 @@ async def list_reports(
             "id": r[0],
             "source": r[1],
             "raw_text": r[2],
-            "parsed": r[3] if isinstance(r[3], dict) else {},
-            "location": {"lng": r[4], "lat": r[5]} if r[4] and r[5] else None,
-            "reported_at": r[6].isoformat() if r[6] else None,
+            "status": "clustered" if r[11] else "processed",
+            "parsed_data": report_parsed_data(r[3]),
+            "location": {"lng": r[4], "lat": r[5]} if r[4] is not None and r[5] is not None else None,
+            "created_at": r[6],
             "confidence": r[7],
             "cluster_id": r[8],
             "verified": r[9],
             "photo_url": r[10],
+            "is_duplicate": r[11],
         })
 
     return {"reports": reports, "count": len(reports)}

@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 from pydantic import BaseModel, Field
 
@@ -15,10 +15,17 @@ class ReportResponse(BaseModel):
     id: str
     source: str
     raw_text: str
-    parsed: Dict[str, Any]
+    status: str
+    parsed_data: Dict[str, Any]
     location: Optional[Dict[str, float]]
-    reported_at: datetime
+    created_at: datetime
     confidence: float
     cluster_id: Optional[str]
+    is_duplicate: bool
     verified: bool
     photo_url: Optional[str]
+
+
+class ReportListResponse(BaseModel):
+    reports: List[ReportResponse]
+    count: int
