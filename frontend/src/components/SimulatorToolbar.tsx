@@ -36,6 +36,7 @@ export function SimulatorToolbar({ onScenarioRun }: Props) {
       <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
         <Play className="w-4 h-4 text-blue-500 fill-blue-500" />
         <span>DEMO SCENARIO SIMULATOR:</span>
+        <span className="rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] text-amber-300">SIMULATED</span>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -82,6 +83,7 @@ export function SimulatorToolbar({ onScenarioRun }: Props) {
         >
           {running === "resource_conflict" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Scale className="w-3.5 h-3.5 text-emerald-400" />}
           Resource Conflict
+          <span className="rounded border border-amber-500/40 bg-amber-500/10 px-1 text-[9px] text-amber-200">SIMULATED</span>
         </button>
       </div>
     </div>

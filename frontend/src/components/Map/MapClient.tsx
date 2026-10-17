@@ -196,6 +196,7 @@ export function MapClient({
               <Popup>
                 <div className="text-xs text-slate-100">
                   <div className="font-bold text-rose-400 mb-1">Road closure: {road.name}</div>
+                  <span className="inline-block rounded border border-amber-500/40 bg-amber-500/10 px-1 py-0.5 text-[9px] font-bold text-amber-300">SIMULATED</span>
                   <div>Status: {road.status.toUpperCase()}</div>
                   <div>Inundation Depth: {road.depth_m}m</div>
                 </div>
@@ -303,7 +304,12 @@ export function MapClient({
         </div>
         <div className="flex items-center gap-1.5 pt-1 border-t border-slate-800">
           <span className="w-3 h-0.5 border-t-2 border-dashed border-rose-500"></span>
-          <span>Blocked Impassable Road</span>
+          <span>Blocked road</span>
+          <span className="rounded border border-amber-500/40 bg-amber-500/10 px-1 text-[9px] font-bold text-amber-300">SIMULATED</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span>Household pins</span>
+          <span className="rounded border border-amber-500/40 bg-amber-500/10 px-1 text-[9px] font-bold text-amber-300">SYNTHETIC</span>
         </div>
       </div>
     </div>
