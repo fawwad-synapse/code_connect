@@ -71,6 +71,10 @@ async def test_resources_and_optimize():
         opt_data = opt_resp.json()
         assert "assignments" in opt_data
         assert "total_score_covered" in opt_data
+        if opt_data["assignments"]:
+            assert {"id", "transit_time_min", "overridden"} <= opt_data["assignments"][0].keys()
+        if opt_data["conflicts"]:
+            assert {"conflict_id", "competing_targets", "resolution_reason", "score_delta"} <= opt_data["conflicts"][0].keys()
 
 
 @pytest.mark.asyncio

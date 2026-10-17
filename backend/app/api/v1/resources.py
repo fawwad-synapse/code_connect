@@ -20,6 +20,65 @@ class OverridePayload(BaseModel):
     new_resource_id: Optional[str] = None
 
 
+def resource_board_response(opt_res: Any, targets: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Translate solver output into the contract consumed by ResourceBoard."""
+    targets_by_id = {target["id"]: target for target in targets}
+    assignments = []
+    for assignment in opt_res.assignments:
+        target = targets_by_id.get(assignment.target_id, {})
+        assignments.append({
+            "id": assignment.assignment_id,
+            "resource_id": assignment.resource_id,
+            "resource_name": assignment.resource_name,
+            "target_id": assignment.target_id,
+            "target_address": f"Household {assignment.target_id}",
+            "priority_score": assignment.priority_score,
+            "transit_time_min": assignment.eta_min,
+            "medical_matched": bool(target.get("chronic_medical_need", False)),
+            "status": "assigned",
+            "overridden": False,
+        })
+
+    assignment_by_resource = {assignment.resource_id: assignment for assignment in opt_res.assignments}
+    conflicts = []
+    for index, conflict in enumerate(opt_res.conflicts, start=1):
+        assigned = assignment_by_resource.get(conflict.chosen_resource_id)
+        chosen_target = targets_by_id.get(conflict.chosen_target_id, {})
+        competing_targets = [{
+            "id": conflict.chosen_target_id,
+            "score": conflict.chosen_priority_score,
+            "urgency": 0,
+            "address": f"Household {conflict.chosen_target_id}",
+            "medical_need": bool(chosen_target.get("chronic_medical_need", False)),
+        }]
+        for queued in conflict.queued_targets:
+            target = targets_by_id.get(queued["target_id"], {})
+            competing_targets.append({
+                "id": queued["target_id"],
+                "score": queued["priority_score"],
+                "urgency": 0,
+                "address": f"Household {queued['target_id']}",
+                "medical_need": bool(target.get("chronic_medical_need", False)),
+            })
+        conflicts.append({
+            "conflict_id": f"conflict_{index}_{conflict.chosen_resource_id}",
+            "resource_id": conflict.chosen_resource_id,
+            "resource_name": assigned.resource_name if assigned else conflict.chosen_resource_id,
+            "competing_targets": competing_targets,
+            "resolution_reason": conflict.conflict_justification,
+            "score_delta": conflict.queued_targets[0]["score_delta"] if conflict.queued_targets else 0.0,
+        })
+
+    return {
+        "assignments": assignments,
+        "unassigned_targets": opt_res.unassigned_targets,
+        "conflicts": conflicts,
+        "total_score_covered": opt_res.total_score_covered,
+        "solver_used": opt_res.solver_used,
+        "solve_duration_ms": opt_res.solve_duration_ms,
+    }
+
+
 @router.get("/resources")
 async def get_resources(db: AsyncSession = Depends(get_db)):
     """
@@ -167,7 +226,7 @@ async def optimize_assignments(
         "score_covered": opt_res.total_score_covered,
     })
 
-    return opt_res.model_dump()
+    return resource_board_response(opt_res, targets)
 
 
 @router.patch("/assignments/{assignment_id}/override")
