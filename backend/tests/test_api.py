@@ -1,8 +1,17 @@
 import pytest
+from datetime import datetime, timedelta, timezone
 from httpx import AsyncClient, ASGITransport
 from app.core.config import settings
+from app.api.v1.reports import duplicate_candidate_cutoff
 settings.ENVIRONMENT = "test"
 from app.main import app
+
+
+def test_duplicate_window_includes_report_created_ten_minutes_ago():
+    now = datetime.now(timezone.utc)
+    report_created_at = now - timedelta(minutes=10)
+
+    assert report_created_at > duplicate_candidate_cutoff(now)
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,6 @@
 import uuid
 from typing import Optional, List
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
@@ -11,6 +11,11 @@ from app.api.v1.ws import ws_manager
 from app.services.dedupe import find_matching_cluster
 
 router = APIRouter()
+
+
+def duplicate_candidate_cutoff(now: datetime) -> datetime:
+    """Return the inclusive look-back boundary for report deduplication."""
+    return now - timedelta(hours=2)
 
 
 @router.post("/reports")
@@ -49,8 +54,8 @@ async def create_report(
         WHERE reported_at > :cutoff
         LIMIT 50;
     """)
-    cutoff = now - datetime.resolution * 3600 * 2  # last 2 hours
-    recents_res = await db.execute(recent_q, {"cutoff": now})
+    cutoff = duplicate_candidate_cutoff(now)
+    recents_res = await db.execute(recent_q, {"cutoff": cutoff})
     recent_reports = [
         {"id": r[0], "raw_text": r[1], "lon": r[2], "lat": r[3], "cluster_id": r[4]}
         for r in recents_res.fetchall()
