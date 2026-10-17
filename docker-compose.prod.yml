@@ -76,7 +76,11 @@ services:
     networks:
       - internal-net
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (r) => {if (r.statusCode !== 200) process.exit(1);})"]
+      test:
+        - CMD
+        - node
+        - -e
+        - "const http=require('http');const request=http.get('http://127.0.0.1:3000',response=>{response.resume();response.on('end',()=>process.exit(response.statusCode===200?0:1));});request.setTimeout(3000,()=>{request.destroy();process.exit(1);});request.on('error',()=>process.exit(1));"
       interval: 15s
       timeout: 5s
       retries: 3
