@@ -69,10 +69,13 @@ export default function OperationsCenterPage() {
       socket.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
-          if (payload.type === "new_report") {
+          const eventType = String(payload.type || "").toUpperCase();
+          if (eventType === "NEW_REPORT") {
             toast.info(`New incident reported: ${payload.data?.address || "Karachi"}`);
             fetchDashboardData();
-          } else if (payload.type === "scenario_updated") {
+          } else if (
+            ["FLOOD_ALERT", "PRIORITY_UPDATE", "SILENT_ZONE_TRIGGER", "ASSIGNMENT_CHANGE", "ASSIGNMENT_OVERRIDE"].includes(eventType)
+          ) {
             toast.success(`Simulator event: ${payload.data?.name || "Updated"}`);
             fetchDashboardData();
           }

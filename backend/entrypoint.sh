@@ -47,7 +47,7 @@ asyncio.run(check())
 
 if grep -q "SEED_NEEDED" /tmp/seed_status.txt; then
     echo "Database is empty. Seeding synthetic data for Karachi disaster response..."
-    python scripts/generate_synthetic_data.py || true
+    python -m scripts.generate_synthetic_data
     python scripts/load_osm.py || true
     echo "Seed data loaded successfully."
 else
