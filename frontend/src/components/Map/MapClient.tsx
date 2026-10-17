@@ -43,6 +43,7 @@ export function MapClient({
   const { mapLayers, setSelectedPriority } = useAppStore();
   const [internalZones, setInternalZones] = useState<ZoneItem[]>([]);
   const [internalPriorities, setInternalPriorities] = useState<PriorityItem[]>([]);
+  const [priorityTotal, setPriorityTotal] = useState(0);
   const [internalResources, setInternalResources] = useState<ResourceItem[]>([]);
   const [internalShelters, setInternalShelters] = useState<ShelterItem[]>([]);
   const [internalBlockedRoads, setInternalBlockedRoads] = useState<BlockedRoadItem[]>([]);
@@ -53,7 +54,10 @@ export function MapClient({
       api.getZones().then((res) => setInternalZones(res.zones || [])).catch(() => {});
     }
     if (!propPriorities || propPriorities.length === 0) {
-      api.getPriorities({ page_size: 100 }).then((res) => setInternalPriorities(res.items || [])).catch(() => {});
+      api.getPriorities({ page_size: 150 }).then((res) => {
+        setInternalPriorities(res.items || []);
+        setPriorityTotal(res.total || 0);
+      }).catch(() => {});
     }
     if (!propResources || propResources.length === 0) {
       api.getResources().then((res) => {
@@ -70,6 +74,8 @@ export function MapClient({
   const resources = propResources && propResources.length > 0 ? propResources : internalResources;
   const shelters = propShelters && propShelters.length > 0 ? propShelters : internalShelters;
   const blockedRoads = propBlockedRoads && propBlockedRoads.length > 0 ? propBlockedRoads : internalBlockedRoads;
+  const visiblePriorities = priorities.slice(0, 150);
+  const displayedTotal = propPriorities && propPriorities.length > 0 ? propPriorities.length : priorityTotal;
 
   const getPriorityColor = (item: PriorityItem) => {
     if (item.is_silent_zone) return "#a855f7"; // Purple for uncertain / silent
@@ -232,7 +238,7 @@ export function MapClient({
 
         {/* Households Priority Pins */}
         {mapLayers.households &&
-          priorities.slice(0, 150).map((p) => (
+          visiblePriorities.map((p) => (
             <CircleMarker
               key={p.id}
               center={[p.location.lat, p.location.lng]}
@@ -274,6 +280,11 @@ export function MapClient({
       {/* Floating Map Legend & Layer Toggles */}
       <div className="absolute bottom-4 left-4 z-[1000] bg-slate-900/90 backdrop-blur border border-slate-800 rounded-lg p-2.5 text-xs text-slate-300 space-y-1.5 shadow-xl">
         <div className="font-bold text-white text-2xs uppercase tracking-wider">Map Legend</div>
+        {displayedTotal > visiblePriorities.length && (
+          <div className="rounded bg-amber-500/10 px-1.5 py-1 text-[10px] font-semibold text-amber-200 border border-amber-500/30">
+            Showing {visiblePriorities.length} of {displayedTotal} household pins by priority
+          </div>
+        )}
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
           <span>Critical (&ge;70)</span>
