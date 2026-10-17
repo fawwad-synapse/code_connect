@@ -128,6 +128,14 @@ def test_factor_breakdown_integrity():
     assert abs(total_pct - 100.0) < 0.01
 
 
+def test_waterway_proximity_increases_existing_flood_exposure():
+    far = calculate_priority_score(forecast_depth_m=1.0, elevation_m=3.0, water_proximity_m=800)
+    near = calculate_priority_score(forecast_depth_m=1.0, elevation_m=3.0, water_proximity_m=80)
+    assert near.water_proximity_risk == 1.0
+    assert near.hazard_exposure > far.hazard_exposure
+    assert near.priority_score > far.priority_score
+
+
 def test_deterministic_explanation_builder():
     """
     Test Case: Deterministic explanation includes score, zone, depth, and reasons without error.

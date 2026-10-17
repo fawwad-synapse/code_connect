@@ -16,6 +16,14 @@ export interface ZoneItem {
   };
 }
 
+export interface WaterwayItem {
+  id: string;
+  name: string;
+  kind: "river" | "creek" | "coast" | "nullah";
+  source: string;
+  geometry: GeoJSON.Geometry;
+}
+
 export interface FactorBreakdown {
   name: string;
   label: string;
@@ -44,6 +52,9 @@ export interface PriorityItem {
   warning_gap: number;
   hazard_exposure: number;
   urgency: number;
+  water_proximity_m?: number | null;
+  water_proximity_risk?: number;
+  occupants?: number;
   confidence: number;
   confidence_level: "HIGH" | "MEDIUM" | "LOW";
   is_silent_zone: boolean;
@@ -90,6 +101,11 @@ export const api = {
 
   async getZones(): Promise<{ zones: ZoneItem[]; count: number }> {
     const res = await fetch(`${API_BASE}/api/v1/zones`);
+    return res.json();
+  },
+
+  async getWaterways(): Promise<{ waterways: WaterwayItem[]; count: number }> {
+    const res = await fetch(`${API_BASE}/api/v1/waterways`);
     return res.json();
   },
 

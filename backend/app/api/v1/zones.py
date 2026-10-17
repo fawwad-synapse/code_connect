@@ -8,6 +8,20 @@ from app.db.session import get_db
 router = APIRouter()
 
 
+@router.get("/waterways")
+async def get_waterways(db: AsyncSession = Depends(get_db)):
+    """Returns the labelled synthetic/OSM-derived waterway exposure layer for the map."""
+    result = await db.execute(text("""
+        SELECT id, name, kind, source, ST_AsGeoJSON(geometry) AS geojson
+        FROM waterways ORDER BY name;
+    """))
+    waterways = [
+        {"id": row[0], "name": row[1], "kind": row[2], "source": row[3], "geometry": json.loads(row[4])}
+        for row in result.fetchall()
+    ]
+    return {"waterways": waterways, "count": len(waterways)}
+
+
 @router.get("/zones")
 async def get_zones(db: AsyncSession = Depends(get_db)):
     """

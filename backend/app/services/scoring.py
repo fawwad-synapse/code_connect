@@ -28,6 +28,8 @@ class PriorityScoreResult(BaseModel):
     vulnerability_index: float  # 0 to 1
     warning_gap: float  # 0 to 1
     hazard_exposure: float  # 0 to 1
+    water_proximity_m: Optional[float]
+    water_proximity_risk: float  # 0 to 1; zero when no local waterway data is available
     urgency: float  # 0.1 to 1.0
     confidence: float  # 0.0 to 1.0
     confidence_level: str  # HIGH, MEDIUM, LOW
@@ -206,6 +208,20 @@ def compute_hazard_exposure(
     return round(exposure, 3)
 
 
+def compute_water_proximity_risk(water_proximity_m: Optional[float]) -> float:
+    """Normalised local exposure from an audited river/creek/coast/nullah distance."""
+    if water_proximity_m is None:
+        return 0.0
+    distance = max(0.0, water_proximity_m)
+    if distance <= 100:
+        return 1.0
+    if distance <= 300:
+        return round(1.0 - ((distance - 100) / 200) * 0.45, 3)
+    if distance <= 500:
+        return round(0.55 - ((distance - 300) / 200) * 0.55, 3)
+    return 0.0
+
+
 def calculate_priority_score(
     age: Optional[int] = None,
     lives_alone: Optional[bool] = None,
@@ -224,6 +240,7 @@ def calculate_priority_score(
     is_fallback_hazard: bool = False,
     report_confidence: float = 1.0,
     missing_fields: Optional[List[str]] = None,
+    water_proximity_m: Optional[float] = None,
 ) -> PriorityScoreResult:
     """
     Calculates transparent priority score (0-100) using the exact formula:
@@ -238,8 +255,13 @@ def calculate_priority_score(
         has_smartphone, signal_quality, alert_acknowledged, missing_fields
     )
 
-    hazard_exposure = compute_hazard_exposure(
+    base_hazard_exposure = compute_hazard_exposure(
         forecast_depth_m, elevation_m, is_silent_zone
+    )
+    water_proximity_risk = compute_water_proximity_risk(water_proximity_m)
+    # A nearby waterway only amplifies an existing forecast; it never creates a flood event by itself.
+    hazard_exposure = round(
+        min(1.0, base_hazard_exposure * (1.0 + 0.35 * water_proximity_risk)), 3
     )
 
     # Urgency U in [0.1, 1.0]
@@ -281,7 +303,7 @@ def calculate_priority_score(
     breakdown = [
         FactorContribution(
             name="hazard_exposure",
-            label="Flood Hazard Exposure",
+            label="Flood Hazard & Waterway Exposure",
             raw_value=round(hazard_exposure, 2),
             weight=0.35,
             contribution_score=round(final_score * 0.35, 1),
@@ -328,6 +350,8 @@ def calculate_priority_score(
         summary_parts.append("Requires specialized medical transport.")
     if warning_gap > 0.6:
         summary_parts.append("High warning blackout risk (unacknowledged alert).")
+    if water_proximity_risk >= 0.55:
+        summary_parts.append(f"Located {round(water_proximity_m or 0)}m from a mapped waterway.")
 
     summary_reason = " ".join(summary_parts)
 
@@ -336,6 +360,8 @@ def calculate_priority_score(
         vulnerability_index=round(vulnerability, 3),
         warning_gap=round(warning_gap, 3),
         hazard_exposure=round(hazard_exposure, 3),
+        water_proximity_m=water_proximity_m,
+        water_proximity_risk=water_proximity_risk,
         urgency=round(urgency, 3),
         confidence=conf,
         confidence_level=conf_level,

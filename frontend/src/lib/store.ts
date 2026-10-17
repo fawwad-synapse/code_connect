@@ -14,8 +14,9 @@ interface AppState {
     shelters: boolean;
     resources: boolean;
     blockedRoads: boolean;
+    waterways: boolean;
   };
-  toggleLayer: (layer: "zones" | "households" | "shelters" | "resources" | "blockedRoads") => void;
+  toggleLayer: (layer: "zones" | "households" | "shelters" | "resources" | "blockedRoads" | "waterways") => void;
 
   activeFilters: {
     zoneId: string | null;
@@ -43,6 +44,7 @@ export const useAppStore = create<AppState>((set) => ({
     shelters: true,
     resources: true,
     blockedRoads: true,
+    waterways: true,
   },
   toggleLayer: (layer) =>
     set((state) => ({

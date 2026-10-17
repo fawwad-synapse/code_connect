@@ -42,6 +42,8 @@ async def get_priorities(
             h.signal_quality,
             h.alert_acknowledged,
             h.missing_fields,
+            h.water_proximity_m,
+            h.occupants,
             z.elevation_m,
             z.deprivation_index,
             z.is_silent_zone,
@@ -79,12 +81,14 @@ async def get_priorities(
         sig = r[12]
         ack = r[13]
         missing = r[14].get("fields", []) if isinstance(r[14], dict) else []
-        elev = r[15]
-        depriv = r[16]
-        silent = r[17]
-        depth = r[18]
-        eta = r[19]
-        fallback = r[20]
+        water_proximity_m = r[15]
+        occupants = r[16]
+        elev = r[17]
+        depriv = r[18]
+        silent = r[19]
+        depth = r[20]
+        eta = r[21]
+        fallback = r[22]
 
         # Apply Priority Scoring Engine
         score_res = calculate_priority_score(
@@ -104,6 +108,7 @@ async def get_priorities(
             is_silent_zone=silent,
             is_fallback_hazard=fallback,
             missing_fields=missing,
+            water_proximity_m=water_proximity_m,
         )
 
         item = {
@@ -125,6 +130,9 @@ async def get_priorities(
             "warning_gap": score_res.warning_gap,
             "hazard_exposure": score_res.hazard_exposure,
             "urgency": score_res.urgency,
+            "water_proximity_m": score_res.water_proximity_m,
+            "water_proximity_risk": score_res.water_proximity_risk,
+            "occupants": occupants,
             "confidence": score_res.confidence,
             "confidence_level": score_res.confidence_level,
             "is_silent_zone": score_res.is_silent_zone,

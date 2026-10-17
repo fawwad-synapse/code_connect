@@ -22,6 +22,9 @@ class PriorityResponseItem(BaseModel):
     warning_gap: float
     hazard_exposure: float
     urgency: float
+    water_proximity_m: Optional[float] = None
+    water_proximity_risk: float = 0.0
+    occupants: int = 1
     confidence: float
     confidence_level: str
     is_silent_zone: bool

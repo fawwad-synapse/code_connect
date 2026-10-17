@@ -96,6 +96,16 @@ KARACHI_ZONES = [
     },
 ]
 
+# Deliberately small, labelled demo geometries. They are not asserted to be an
+# authoritative hydrological dataset; replace their source with OSM in production.
+WATERWAYS = [
+    ("water_lyari", "Lyari River", "river", "SRID=4326;LINESTRING(66.983 24.852, 66.997 24.860, 67.012 24.868)"),
+    ("water_malir", "Malir River", "river", "SRID=4326;LINESTRING(67.126 24.862, 67.142 24.874, 67.159 24.887)"),
+    ("water_korangi", "Korangi Creek", "creek", "SRID=4326;LINESTRING(67.094 24.807, 67.112 24.813, 67.132 24.820)"),
+    ("water_clifton", "Arabian Sea Coastal Edge", "coast", "SRID=4326;LINESTRING(67.020 24.813, 67.040 24.812, 67.058 24.813)"),
+    ("water_orangi", "Orangi Nullah", "nullah", "SRID=4326;LINESTRING(66.998 24.919, 67.012 24.930, 67.030 24.940)"),
+]
+
 def make_polygon_wkt(coords):
     pairs = [f"{lng} {lat}" for lng, lat in coords]
     return f"SRID=4326;POLYGON(({', '.join(pairs)}))"
@@ -119,7 +129,17 @@ async def seed_data():
 
         # 1. Clear existing data
         print("Clearing tables...")
-        await conn.execute("TRUNCATE audit_log, assignments, households, hazard_snapshots, reports, resources, shelters, zones CASCADE;")
+        await conn.execute("TRUNCATE audit_log, assignments, households, hazard_snapshots, reports, resources, shelters, waterways, zones CASCADE;")
+
+        print("Inserting synthetic river, creek, coast, and nullah layers...")
+        for waterway in WATERWAYS:
+            await conn.execute(
+                """
+                INSERT INTO waterways (id, name, kind, geometry, source)
+                VALUES ($1, $2, $3, ST_GeomFromEWKT($4), 'synthetic_demo')
+                """,
+                *waterway,
+            )
 
         # 2. Insert Zones & Initial Hazard Snapshots
         print("Inserting 6 Karachi zones...")
@@ -217,11 +237,12 @@ async def seed_data():
                     miss = random.sample(missing_candidates, k=random.randint(1, 2))
                     missing_fields = {"fields": miss}
 
+                occupants = random.choices([1, 2, 3, 4, 6, 8, 10], weights=[0.08, 0.18, 0.28, 0.22, 0.14, 0.07, 0.03])[0]
                 household_records.append((
                     hh_id, zone_id, wkt, age, lives_alone, mobility_impaired, chronic_medical,
                     housing_type, floor_level, has_smartphone, signal_quality, alert_ack,
                     "sms" if not has_smartphone else "telegram", phone, True,
-                    missing_fields
+                    missing_fields, occupants
                 ))
 
         for hr in household_records:
@@ -230,14 +251,25 @@ async def seed_data():
                 INSERT INTO households (
                     id, zone_id, location, age, lives_alone, mobility_impaired, chronic_medical_need,
                     housing_type, floor_level, has_smartphone, signal_quality, alert_acknowledged,
-                    contact_method, phone_number, is_synthetic, missing_fields, created_at
+                    contact_method, phone_number, is_synthetic, missing_fields, occupants, created_at
                 ) VALUES (
-                    $1, $2, ST_GeomFromEWKT($3), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+                    $1, $2, ST_GeomFromEWKT($3), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
                 )
                 """,
                 hr[0], hr[1], hr[2], hr[3], hr[4], hr[5], hr[6], hr[7], hr[8], hr[9], hr[10], hr[11], hr[12], hr[13], hr[14],
-                import_json(hr[15]), now
+                import_json(hr[15]), hr[16], now
             )
+
+        # Materialise nearest-waterway distance once during deterministic seeding.
+        await conn.execute("""
+            UPDATE households h
+            SET water_proximity_m = (
+                SELECT ROUND(ST_Distance(h.location::geography, w.geometry::geography))::float AS distance_m
+                FROM waterways w
+                ORDER BY h.location <-> w.geometry
+                LIMIT 1
+            );
+        """)
 
         # 6. Insert Initial Reports (Clustered + Duplicates in Lyari & Korangi; 0 in Malir silent zone)
         print("Inserting clustered reports...")

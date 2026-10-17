@@ -64,6 +64,9 @@ class Household(Base):
     alert_acknowledged: Mapped[bool] = mapped_column(Boolean, default=False)
     contact_method: Mapped[str] = mapped_column(String(32), default="sms")  # sms, telegram, whatsapp, verbal
     phone_number: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    occupants: Mapped[int] = mapped_column(Integer, default=3)
+    # Calculated from the nearest seeded/OSM waterway. Null preserves legacy scoring.
+    water_proximity_m: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     # Compliance & Explainability Metadata
     is_synthetic: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -75,6 +78,20 @@ class Household(Base):
     __table_args__ = (
         Index("idx_households_location", "location", postgresql_using="gist"),
     )
+
+
+class Waterway(Base):
+    """Synthetic or OpenStreetMap-derived flood exposure line used for spatial analysis."""
+
+    __tablename__ = "waterways"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)  # river, creek, coast, nullah
+    geometry = mapped_column(Geometry("LINESTRING", srid=4326), nullable=False)
+    source: Mapped[str] = mapped_column(String(64), default="synthetic_demo")
+
+    __table_args__ = (Index("idx_waterways_geometry", "geometry", postgresql_using="gist"),)
 
 
 class Report(Base):

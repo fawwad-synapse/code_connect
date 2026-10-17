@@ -173,6 +173,7 @@ export default function OperationsCenterPage() {
                   { id: "shelters", label: "Shelters" },
                   { id: "resources", label: "Rescue Units" },
                   { id: "blockedRoads", label: "Road Closures" },
+                  { id: "waterways", label: "Waterways" },
                 ] as const
               ).map((layer) => (
                 <button

@@ -12,7 +12,7 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { api, ZoneItem, PriorityItem, ResourceItem, ShelterItem, BlockedRoadItem } from "@/lib/api";
+import { api, ZoneItem, PriorityItem, ResourceItem, ShelterItem, BlockedRoadItem, WaterwayItem } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
 
 // Fix Leaflet marker icons in React
@@ -46,6 +46,7 @@ export function MapClient({
   const [internalResources, setInternalResources] = useState<ResourceItem[]>([]);
   const [internalShelters, setInternalShelters] = useState<ShelterItem[]>([]);
   const [internalBlockedRoads, setInternalBlockedRoads] = useState<BlockedRoadItem[]>([]);
+  const [waterways, setWaterways] = useState<WaterwayItem[]>([]);
 
   useEffect(() => {
     if (!propZones || propZones.length === 0) {
@@ -61,6 +62,7 @@ export function MapClient({
         setInternalBlockedRoads(res.blocked_roads || []);
       }).catch(() => {});
     }
+    api.getWaterways().then((res) => setWaterways(res.waterways || [])).catch(() => {});
   }, [propZones, propPriorities, propResources]);
 
   const zones = propZones && propZones.length > 0 ? propZones : internalZones;
@@ -132,6 +134,16 @@ export function MapClient({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+
+        {/* Waterway exposure layer: synthetic hackathon data now, replaceable with OSM later. */}
+        {mapLayers.waterways && waterways.map((waterway) => (
+          <GeoJSON
+            key={waterway.id}
+            data={{ type: "Feature", properties: waterway, geometry: waterway.geometry } as any}
+            style={{ color: "#38bdf8", weight: waterway.kind === "coast" ? 4 : 3, opacity: 0.9 }}
+            onEachFeature={(_, layer) => layer.bindPopup(`<b>${waterway.name}</b><br/>${waterway.kind.toUpperCase()} exposure layer`)}
+          />
+        ))}
 
         {/* Zones Polygons Layer */}
         {mapLayers.zones &&
@@ -243,6 +255,7 @@ export function MapClient({
                   <div className="font-bold text-rose-400">Score: {p.priority_score}/100</div>
                   <div>Age: {p.age} {p.mobility_impaired && "| Immobile"} {p.chronic_medical_need && "| Medical Need"}</div>
                   <div>Warning Gap: {Math.round(p.warning_gap * 100)}%</div>
+                  {p.water_proximity_m != null && <div>Nearest waterway: {Math.round(p.water_proximity_m)}m</div>}
                   <button
                     onClick={() => {
                       setSelectedPriority(p);
