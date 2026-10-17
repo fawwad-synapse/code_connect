@@ -1,0 +1,102 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: rescuerank-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rescuerank}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rescuerank_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-rescuerank_db}
+      POSTGRES_HOST_AUTH_METHOD: "trust"
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rescuerank} -d ${POSTGRES_DB:-rescuerank_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rescuerank-net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rescuerank-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-rescuerank}:${POSTGRES_PASSWORD:-rescuerank_secret}@db:5432/${POSTGRES_DB:-rescuerank_db}
+      ENVIRONMENT: development
+      DEBUG: "true"
+      SECRET_KEY: ${SECRET_KEY:-rescuerank_super_secret_jwt_signing_key_32chars_min!}
+      API_V1_PREFIX: /api/v1
+      CORS_ORIGINS: '["http://localhost:3000", "http://127.0.0.1:3000"]'
+      DEMO_CITY: "Karachi, Pakistan"
+      ENABLE_SIMULATOR: "true"
+      LLM_PROVIDER: ${LLM_PROVIDER:-openrouter}
+      LLM_MODEL: ${LLM_MODEL:-liquid/lfm-2.5-2.6b:free}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-liquid/lfm-2.5-2.6b:free}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      ALERT_WHATSAPP_NUMBERS: ${ALERT_WHATSAPP_NUMBERS:-}
+      ALERT_RISK_THRESHOLD: ${ALERT_RISK_THRESHOLD:-0.70}
+      ALERT_ETA_HOURS: ${ALERT_ETA_HOURS:-6.0}
+      ALERT_COOLDOWN_MIN: ${ALERT_COOLDOWN_MIN:-30}
+      SCHEDULER_INTERVAL_MIN: ${SCHEDULER_INTERVAL_MIN:-15}
+      OPEN_METEO_BASE_URL: https://api.open-meteo.com/v1
+      OPEN_METEO_FLOOD_URL: https://flood-api.open-meteo.com/v1
+      USE_FALLBACK_DATA: "false"
+      USE_OSRM: "false"
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - rescuerank-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    container_name: rescuerank-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000', (r) => {if (r.statusCode !== 200) process.exit(1);})\""]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - rescuerank-net
+
+volumes:
+  pgdata:
+    name: rescuerank_pgdata
+
+networks:
+  rescuerank-net:
+    name: rescuerank_network
