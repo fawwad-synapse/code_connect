@@ -62,6 +62,29 @@ def estimate_transit_time_min(lon1: float, lat1: float, lon2: float, lat2: float
     return round(dist_km, 2), round(time_min, 1)
 
 
+def _occupants(target: Dict[str, Any]) -> int:
+    return max(1, int(target.get("occupants") or 1))
+
+
+def _unassigned_targets(targets: List[Dict[str, Any]], assigned_ids: set[str], resources: List[Dict[str, Any]], remaining: Dict[str, int]) -> List[Dict[str, Any]]:
+    unassigned = []
+    for target in targets:
+        if target["id"] in assigned_ids:
+            continue
+        occupants = _occupants(target)
+        available = [r for r in resources if r.get("status") == "available"]
+        eligible = [r for r in available if not target.get("chronic_medical_need") or r.get("medical_capable", False)]
+        if not eligible:
+            reason = "No available responder meets the household's medical eligibility requirement." if target.get("chronic_medical_need") else "No available responders."
+        elif not any(remaining.get(r["id"], max(0, int(r.get("capacity", 1)))) >= occupants for r in eligible):
+            maximum = max(remaining.get(r["id"], max(0, int(r.get("capacity", 1)))) for r in eligible)
+            reason = f"Passenger capacity unavailable: household needs {occupants}, maximum remaining eligible capacity is {maximum}."
+        else:
+            reason = "Eligible responder capacity was allocated to higher-priority households."
+        unassigned.append({**target, "status": "unassigned", "reason": reason})
+    return unassigned
+
+
 def solve_greedy_assignment(
     targets: List[Dict[str, Any]],
     resources: List[Dict[str, Any]],
@@ -72,7 +95,8 @@ def solve_greedy_assignment(
     """
     start_time = time.time()
     available_resources = {r["id"]: r for r in resources if r.get("status") == "available"}
-    sorted_targets = sorted(targets, key=lambda t: t.get("priority_score", 0.0), reverse=True)
+    remaining = {r["id"]: max(0, int(r.get("capacity", 1))) for r in available_resources.values()}
+    sorted_targets = sorted(targets, key=lambda t: (-t.get("priority_score", 0.0), t["id"]))
 
     assignments: List[AssignmentItem] = []
     assigned_targets = set()
@@ -84,6 +108,7 @@ def solve_greedy_assignment(
         t_lat = target.get("lat", 24.85)
         t_score = target.get("priority_score", 50.0)
         needs_medical = target.get("chronic_medical_need", False)
+        occupants = _occupants(target)
 
         best_res_id = None
         best_eta = 9999.0
@@ -91,6 +116,8 @@ def solve_greedy_assignment(
 
         for r_id, r in available_resources.items():
             if needs_medical and not r.get("medical_capable", False):
+                continue
+            if remaining[r_id] < occupants:
                 continue
 
             r_lon = r.get("lon", 67.0)
@@ -103,7 +130,8 @@ def solve_greedy_assignment(
                 best_res_id = r_id
 
         if best_res_id is not None:
-            r = available_resources.pop(best_res_id)
+            r = available_resources[best_res_id]
+            remaining[best_res_id] -= occupants
             assigned_targets.add(t_id)
 
             reason = f"Greedy match: highest priority ({t_score}/100) reachable in {best_eta} min."
@@ -127,7 +155,7 @@ def solve_greedy_assignment(
                 )
             )
 
-    unassigned = [t for t in sorted_targets if t["id"] not in assigned_targets]
+    unassigned = _unassigned_targets(sorted_targets, assigned_targets, resources, remaining)
     duration_ms = (time.time() - start_time) * 1000.0
     total_score = sum(a.priority_score for a in assignments)
 
@@ -152,12 +180,13 @@ def solve_resource_assignments(
     Falls back cleanly to greedy heuristic if timeout occurs.
     """
     start_time = time.time()
+    targets = sorted(targets, key=lambda target: (-target.get("priority_score", 0.0), target["id"]))
     avail_resources = [r for r in resources if r.get("status") == "available"]
 
     if not targets or not avail_resources:
         return OptimizationResult(
             assignments=[],
-            unassigned_targets=targets,
+            unassigned_targets=_unassigned_targets(targets, set(), resources, {r["id"]: max(0, int(r.get("capacity", 1))) for r in avail_resources}),
             conflicts=[],
             total_score_covered=0.0,
             solver_used="or_tools",
@@ -183,27 +212,27 @@ def solve_resource_assignments(
 
                 x[i, j] = solver.BoolVar(f"x_{i}_{j}")
 
-        # Constraint 1: Each resource can be assigned to at most 1 primary target in this dispatch
+        # Constraint 1: Household passenger counts cannot exceed resource capacity.
         for i in range(len(avail_resources)):
-            solver.Add(solver.Sum([x[i, j] for j in range(len(targets)) if (i, j) in x]) <= 1)
+            solver.Add(solver.Sum([_occupants(targets[j]) * x[i, j] for j in range(len(targets)) if (i, j) in x]) <= max(0, int(avail_resources[i].get("capacity", 1))))
 
         # Constraint 2: Each target can receive at most 1 resource
         for j in range(len(targets)):
             solver.Add(solver.Sum([x[i, j] for i in range(len(avail_resources)) if (i, j) in x]) <= 1)
 
-        # Objective: Maximize covered priority score minus small penalty for travel time
+        # Targets are supplied in dashboard priority order. Exponential rank weights
+        # make selection lexicographic: a lower ranked target cannot displace a higher one.
         objective = solver.Objective()
         for (i, j), var in x.items():
             r = avail_resources[i]
             t = targets[j]
-            score = t.get("priority_score", 50.0)
             dist_km, eta_min = estimate_transit_time_min(
                 r.get("lon", 67.0), r.get("lat", 24.85),
                 t.get("lon", 67.0), t.get("lat", 24.85),
                 r["type"]
             )
-            # Weighted objective: Priority score (10x) minus travel minutes (0.2x)
-            coeff = (score * 10.0) - (eta_min * 0.2)
+            rank_weight = (2 ** (len(targets) - j - 1)) * 10_000
+            coeff = rank_weight - eta_min * 0.01
             objective.SetCoefficient(var, coeff)
 
         objective.SetMaximization()
@@ -217,13 +246,10 @@ def solve_resource_assignments(
             return solve_greedy_assignment(targets, resources)
 
         assignments: List[AssignmentItem] = []
-        assigned_target_indices = set()
-
         for (i, j), var in x.items():
             if var.solution_value() > 0.5:
                 r = avail_resources[i]
                 t = targets[j]
-                assigned_target_indices.add(j)
                 dist_km, eta_min = estimate_transit_time_min(
                     r.get("lon", 67.0), r.get("lat", 24.85),
                     t.get("lon", 67.0), t.get("lat", 24.85),
@@ -251,7 +277,14 @@ def solve_resource_assignments(
                     )
                 )
 
-        unassigned = [t for idx, t in enumerate(targets) if idx not in assigned_target_indices]
+        remaining = {r["id"]: max(0, int(r.get("capacity", 1))) for r in avail_resources}
+        for assignment in assignments:
+            target = next(t for t in targets if t["id"] == assignment.target_id)
+            remaining[assignment.resource_id] -= _occupants(target)
+        assigned_ids = {assignment.target_id for assignment in assignments}
+        unassigned = _unassigned_targets(targets, assigned_ids, resources, remaining)
+        rank_by_target = {target["id"]: index for index, target in enumerate(targets)}
+        assignments.sort(key=lambda assignment: rank_by_target[assignment.target_id])
         duration_ms = (time.time() - start_time) * 1000.0
         total_score = sum(a.priority_score for a in assignments)
 

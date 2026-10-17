@@ -3,6 +3,7 @@ import "./globals.css";
 import { Toaster } from "sonner";
 import { Navbar } from "@/components/Navbar";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { PwaRegister } from "@/components/PwaRegister";
 
 export const metadata: Metadata = {
   title: "RescueRank | Explainable Disaster Response Prioritization",
@@ -19,6 +20,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="font-sans bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased">
+        <PwaRegister />
         <OfflineBanner />
         <Navbar />
         <div className="flex-1 flex flex-col">{children}</div>

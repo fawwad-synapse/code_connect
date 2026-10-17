@@ -49,11 +49,21 @@ interface ConflictDetail {
   score_delta: number;
 }
 
+interface UnassignedTarget {
+  id: string;
+  priority_score: number;
+  occupants: number;
+  reason: string;
+}
+
 export function ResourceBoard() {
   const [resources, setResources] = useState<ResourceItem[]>([]);
   const [shelters, setShelters] = useState<ShelterItem[]>([]);
   const [assignments, setAssignments] = useState<AssignmentResult[]>([]);
   const [conflicts, setConflicts] = useState<ConflictDetail[]>([]);
+  const [unassignedTargets, setUnassignedTargets] = useState<UnassignedTarget[]>([]);
+  const [hasOptimization, setHasOptimization] = useState(false);
+  const [candidateCount, setCandidateCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<AssignmentResult | null>(null);
@@ -86,6 +96,9 @@ export function ResourceBoard() {
       const result = await api.optimizeAssignments(useFallback);
       setAssignments(result.assignments || []);
       setConflicts(result.conflicts || []);
+      setUnassignedTargets(result.unassigned_targets || []);
+      setCandidateCount(result.candidate_count || 0);
+      setHasOptimization(true);
       toast.success(
         `Optimization complete: ${result.assignments?.length || 0} teams dispatched via ${
           result.solver_used || "OR-Tools"
@@ -280,6 +293,18 @@ export function ResourceBoard() {
 
         {/* Center & Right Column: Dispatches & Active Solver Assignments */}
         <div className="lg:col-span-2 space-y-6">
+          {hasOptimization && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-emerald-800/60 bg-emerald-950/20 p-3">
+                <div className="text-[10px] uppercase font-bold tracking-wider text-emerald-300">Assigned ({candidateCount} candidates)</div>
+                <div className="mt-1 text-2xl font-black text-white">{assignments.length}</div>
+              </div>
+              <div className="rounded-xl border border-amber-800/60 bg-amber-950/20 p-3">
+                <div className="text-[10px] uppercase font-bold tracking-wider text-amber-300">Unassigned households</div>
+                <div className="mt-1 text-2xl font-black text-white">{unassignedTargets.length}</div>
+              </div>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
@@ -365,6 +390,20 @@ export function ResourceBoard() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {hasOptimization && unassignedTargets.length > 0 && (
+            <div className="rounded-xl border border-amber-900/40 bg-amber-950/10 p-4 space-y-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-amber-300">Unassigned households and reasons</h3>
+              <div className="max-h-48 overflow-y-auto space-y-2">
+                {unassignedTargets.map((target) => (
+                  <div key={target.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+                    <span className="font-semibold text-slate-200">{target.id} ({target.occupants} people, score {target.priority_score})</span>
+                    <span className="text-amber-200/80">{target.reason}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

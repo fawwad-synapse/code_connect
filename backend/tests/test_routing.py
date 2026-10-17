@@ -86,6 +86,40 @@ def test_greedy_fallback_assignment():
     assert result.solver_used == "greedy_fallback"
 
 
+@pytest.mark.parametrize("solver", [solve_resource_assignments, solve_greedy_assignment])
+def test_boat_passenger_load_never_exceeds_capacity(solver):
+    targets = [
+        {"id": "hh1", "priority_score": 90, "occupants": 2, "lon": 67.0, "lat": 24.85},
+        {"id": "hh2", "priority_score": 80, "occupants": 2, "lon": 67.001, "lat": 24.85},
+        {"id": "hh3", "priority_score": 70, "occupants": 1, "lon": 67.002, "lat": 24.85},
+    ]
+    resources = [{"id": "boat", "name": "Small boat", "type": "boat", "capacity": 3,
+                  "lon": 67.0, "lat": 24.85, "status": "available", "medical_capable": False}]
+
+    result = solver(targets, resources)
+    assigned = {target["id"]: target for target in targets}
+    passenger_load = sum(assigned[item.target_id]["occupants"] for item in result.assignments if item.resource_id == "boat")
+
+    assert passenger_load <= 3
+    assert len(result.assignments) == 2
+    assert all(item["status"] == "unassigned" and item["reason"] for item in result.unassigned_targets)
+
+
+@pytest.mark.parametrize("solver", [solve_resource_assignments, solve_greedy_assignment])
+def test_highest_priority_household_served_first_with_scarce_capacity(solver):
+    targets = [
+        {"id": "first", "priority_score": 90, "occupants": 2, "lon": 67.0, "lat": 24.85},
+        {"id": "second", "priority_score": 70, "occupants": 2, "lon": 67.0, "lat": 24.85},
+        {"id": "third", "priority_score": 60, "occupants": 1, "lon": 67.0, "lat": 24.85},
+    ]
+    resources = [{"id": "boat", "name": "Small boat", "type": "boat", "capacity": 2,
+                  "lon": 67.0, "lat": 24.85, "status": "available", "medical_capable": False}]
+
+    result = solver(targets, resources)
+
+    assert [item.target_id for item in result.assignments] == ["first"]
+
+
 def test_conflict_scenario_explanation():
     """
     Test Case: When resources are limited (1 resource, 3 targets),

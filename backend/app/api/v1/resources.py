@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from app.db.session import get_db
 from app.services.routing import solve_resource_assignments, solve_greedy_assignment
+from app.services.scoring import calculate_priority_score
 from app.api.v1.ws import ws_manager
 
 router = APIRouter()
@@ -20,19 +21,25 @@ class OverridePayload(BaseModel):
     new_resource_id: Optional[str] = None
 
 
-def resource_board_response(opt_res: Any, targets: List[Dict[str, Any]]) -> Dict[str, Any]:
+def resource_board_response(opt_res: Any, targets: List[Dict[str, Any]], resources: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Translate solver output into the contract consumed by ResourceBoard."""
     targets_by_id = {target["id"]: target for target in targets}
+    resources_by_id = {resource["id"]: resource for resource in resources}
     assignments = []
     for assignment in opt_res.assignments:
         target = targets_by_id.get(assignment.target_id, {})
+        resource = resources_by_id.get(assignment.resource_id, {})
         assignments.append({
             "id": assignment.assignment_id,
             "resource_id": assignment.resource_id,
             "resource_name": assignment.resource_name,
             "target_id": assignment.target_id,
             "target_address": f"Household {assignment.target_id}",
+            "resource_type": assignment.resource_type,
+            "resource_location": {"lng": resource.get("lon"), "lat": resource.get("lat")},
+            "target_location": {"lng": target.get("lon"), "lat": target.get("lat")},
             "priority_score": assignment.priority_score,
+            "occupants": target.get("occupants", 1),
             "transit_time_min": assignment.eta_min,
             "medical_matched": bool(target.get("chronic_medical_need", False)),
             "status": "assigned",
@@ -72,6 +79,7 @@ def resource_board_response(opt_res: Any, targets: List[Dict[str, Any]]) -> Dict
     return {
         "assignments": assignments,
         "unassigned_targets": opt_res.unassigned_targets,
+        "candidate_count": len(targets),
         "conflicts": conflicts,
         "total_score_covered": opt_res.total_score_covered,
         "solver_used": opt_res.solver_used,
@@ -138,6 +146,29 @@ async def get_resources(db: AsyncSession = Depends(get_db)):
     }
 
 
+@router.get("/assignments")
+async def list_assignments(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(text("""
+        SELECT a.id, a.resource_id, r.name, r.type,
+               ST_X(r.location) AS resource_lng, ST_Y(r.location) AS resource_lat,
+               a.target_id, ST_X(h.location) AS target_lng, ST_Y(h.location) AS target_lat,
+               a.eta_min, a.reason, a.confidence
+        FROM assignments a
+        JOIN resources r ON r.id = a.resource_id
+        JOIN households h ON a.target_type = 'household' AND h.id = a.target_id
+        WHERE a.created_at = (SELECT MAX(created_at) FROM assignments)
+        ORDER BY a.id
+    """))
+    rows = result.fetchall()
+    assignments = [{
+        "id": row[0], "resource_id": row[1], "resource_name": row[2], "resource_type": row[3],
+        "resource_location": {"lng": row[4], "lat": row[5]}, "target_id": row[6],
+        "target_location": {"lng": row[7], "lat": row[8]}, "transit_time_min": row[9],
+        "reason": row[10], "confidence": row[11],
+    } for row in rows]
+    return {"assignments": assignments, "assigned_count": len(assignments)}
+
+
 @router.post("/assignments/optimize")
 async def optimize_assignments(
     use_fallback_solver: bool = False,
@@ -158,36 +189,48 @@ async def optimize_assignments(
 
     # 2. Fetch top priority households requiring evacuation
     h_query = text("""
-        SELECT 
-            h.id, ST_X(h.location) as lon, ST_Y(h.location) as lat,
-            h.chronic_medical_need, h.mobility_impaired,
-            COALESCE(hz.depth_m_forecast, 1.2) as depth_m
+        SELECT h.id, h.zone_id, z.name AS zone_name,
+            ST_X(h.location) AS lng, ST_Y(h.location) AS lat,
+            h.age, h.lives_alone, h.mobility_impaired, h.chronic_medical_need,
+            h.housing_type, h.floor_level, h.has_smartphone, h.signal_quality,
+            h.alert_acknowledged, h.missing_fields, h.water_proximity_m, h.occupants, h.report_evidence,
+            z.elevation_m, z.deprivation_index, z.is_silent_zone,
+            COALESCE(hz.depth_m_forecast, 1.0) AS depth_m_forecast,
+            COALESCE(hz.eta_hours, 4.0) AS eta_hours,
+            COALESCE(hz.is_fallback, false) AS is_fallback
         FROM households h
         JOIN zones z ON h.zone_id = z.id
         LEFT JOIN LATERAL (
-            SELECT depth_m_forecast FROM hazard_snapshots WHERE zone_id = h.zone_id ORDER BY fetched_at DESC LIMIT 1
+            SELECT depth_m_forecast, eta_hours, is_fallback FROM hazard_snapshots
+            WHERE zone_id = h.zone_id ORDER BY fetched_at DESC LIMIT 1
         ) hz ON true
-        WHERE (h.mobility_impaired = true OR h.chronic_medical_need = true OR hz.depth_m_forecast >= 1.2)
-        LIMIT 25;
+        ORDER BY h.id ASC;
     """)
-    h_rows = (await db.execute(h_query)).fetchall()
+    h_rows = (await db.execute(h_query)).mappings().all()
 
     targets = []
-    for idx, h in enumerate(h_rows):
-        # Compute priority score
-        med = h[3]
-        mob = h[4]
-        depth = h[5]
-        score = 85.0 if med else (75.0 if mob else 60.0)
+    for h in h_rows:
+        missing = h["missing_fields"].get("fields", []) if isinstance(h["missing_fields"], dict) else []
+        score = calculate_priority_score(
+            age=h["age"], lives_alone=h["lives_alone"], mobility_impaired=h["mobility_impaired"],
+            chronic_medical_need=h["chronic_medical_need"], housing_type=h["housing_type"],
+            floor_level=h["floor_level"], zone_deprivation=h["deprivation_index"],
+            has_smartphone=h["has_smartphone"], signal_quality=h["signal_quality"],
+            alert_acknowledged=h["alert_acknowledged"], forecast_depth_m=h["depth_m_forecast"],
+            elevation_m=h["elevation_m"], eta_hours=h["eta_hours"], is_silent_zone=h["is_silent_zone"],
+            is_fallback_hazard=h["is_fallback"], missing_fields=missing,
+            water_proximity_m=h["water_proximity_m"],
+            report_evidence=h["report_evidence"],
+        )
         targets.append({
-            "id": h[0],
-            "lon": h[1],
-            "lat": h[2],
-            "priority_score": score,
-            "chronic_medical_need": med,
-            "mobility_impaired": mob,
-            "confidence": 0.95,
+            "id": h["id"], "zone_id": h["zone_id"], "zone_name": h["zone_name"],
+            "lon": h["lng"], "lat": h["lat"], "priority_score": score.priority_score,
+            "chronic_medical_need": bool(h["chronic_medical_need"]),
+            "mobility_impaired": bool(h["mobility_impaired"]),
+            "occupants": h["occupants"] or 1, "confidence": score.confidence,
         })
+    targets.sort(key=lambda target: (-target["priority_score"], target["id"]))
+    targets = targets[:25]
 
     # 3. Solve using OR-Tools or Greedy Fallback
     if use_fallback_solver:
@@ -203,7 +246,7 @@ async def optimize_assignments(
                 id, resource_id, target_type, target_id, rank, route, eta_min, reason, confidence, created_at
             ) VALUES (
                 :id, :res_id, :ttype, :tid, 1, :route, :eta, :reason, :conf, :created_at
-            ) ON CONFLICT (id) DO UPDATE SET eta_min = :eta, reason = :reason;
+            ) ON CONFLICT (id) DO UPDATE SET eta_min = :eta, reason = :reason, created_at = EXCLUDED.created_at;
         """)
         await db.execute(ins_q, {
             "id": a.assignment_id,
@@ -226,7 +269,7 @@ async def optimize_assignments(
         "score_covered": opt_res.total_score_covered,
     })
 
-    return resource_board_response(opt_res, targets)
+    return resource_board_response(opt_res, targets, resources)
 
 
 @router.patch("/assignments/{assignment_id}/override")
@@ -242,21 +285,39 @@ async def override_assignment(
     """
     now = datetime.now(timezone.utc)
 
-    # 1. Update assignment
-    upd_q = text("""
-        UPDATE assignments
-        SET overridden_by = :actor, override_reason = :reason
-        WHERE id = :aid
-        RETURNING id, resource_id, target_id;
-    """)
-    res = await db.execute(upd_q, {
-        "actor": payload.overridden_by,
-        "reason": payload.override_reason,
-        "aid": assignment_id,
-    })
-    row = res.fetchone()
+    row = (await db.execute(text("SELECT id, resource_id, target_type, target_id FROM assignments WHERE id = :aid"), {"aid": assignment_id})).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Assignment not found")
+    original_resource_id, target_type, target_id = row[1], row[2], row[3]
+
+    if payload.new_resource_id:
+        resource = (await db.execute(text("SELECT capacity, medical_capable, status FROM resources WHERE id = :rid"), {"rid": payload.new_resource_id})).fetchone()
+        if not resource:
+            raise HTTPException(status_code=404, detail="Replacement resource not found")
+        if resource[2] != "available":
+            raise HTTPException(status_code=409, detail="Replacement resource is not available")
+        household = (await db.execute(text("SELECT COALESCE(occupants, 1), chronic_medical_need FROM households WHERE id = :tid"), {"tid": target_id})).fetchone() if target_type == "household" else None
+        if not household:
+            raise HTTPException(status_code=400, detail="Only household assignments can be reallocated")
+        if household[1] and not resource[1]:
+            raise HTTPException(status_code=409, detail="Replacement resource does not meet the medical eligibility requirement")
+        current_load = (await db.execute(text("""
+            SELECT COALESCE(SUM(COALESCE(h.occupants, 1)), 0)
+            FROM assignments a LEFT JOIN households h ON a.target_type = 'household' AND h.id = a.target_id
+            WHERE a.resource_id = :rid AND a.id <> :aid
+              AND a.created_at = (SELECT MAX(created_at) FROM assignments)
+        """), {"rid": payload.new_resource_id, "aid": assignment_id})).scalar_one()
+        if current_load + household[0] > resource[0]:
+            raise HTTPException(status_code=409, detail=f"Replacement resource capacity exceeded: {current_load} assigned, {household[0]} needed, {resource[0]} capacity")
+
+    resource_assignment = "resource_id = :new_resource_id," if payload.new_resource_id else ""
+    update_params = {"actor": payload.overridden_by, "reason": payload.override_reason, "aid": assignment_id}
+    if payload.new_resource_id:
+        update_params["new_resource_id"] = payload.new_resource_id
+    updated = (await db.execute(text(f"""
+        UPDATE assignments SET {resource_assignment} overridden_by = :actor, override_reason = :reason
+        WHERE id = :aid RETURNING id, resource_id, target_id
+    """), update_params)).fetchone()
 
     # 2. Write to Audit Log
     audit_id = f"aud_{uuid.uuid4().hex[:12]}"
@@ -270,9 +331,10 @@ async def override_assignment(
         "tid": assignment_id,
         "details": json.dumps({
             "override_reason": payload.override_reason,
-            "new_resource_id": payload.new_resource_id,
-            "original_resource_id": row[1],
-            "target_id": row[2],
+            "requested_resource_id": payload.new_resource_id,
+            "original_resource_id": original_resource_id,
+            "new_resource_id": updated[1],
+            "target_id": target_id,
         }),
         "created_at": now,
     })
@@ -280,6 +342,7 @@ async def override_assignment(
 
     await ws_manager.broadcast("ASSIGNMENT_OVERRIDE", {
         "assignment_id": assignment_id,
+        "resource_id": updated[1],
         "overridden_by": payload.overridden_by,
         "reason": payload.override_reason,
     })
@@ -287,6 +350,7 @@ async def override_assignment(
     return {
         "status": "success",
         "assignment_id": assignment_id,
+        "resource_id": updated[1],
         "overridden_by": payload.overridden_by,
         "override_reason": payload.override_reason,
         "audit_log_id": audit_id,

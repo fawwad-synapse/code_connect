@@ -67,6 +67,8 @@ class Household(Base):
     occupants: Mapped[int] = mapped_column(Integer, default=3)
     # Calculated from the nearest seeded/OSM waterway. Null preserves legacy scoring.
     water_proximity_m: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Cumulative, confidence/recency-weighted nearby report evidence.
+    report_evidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
 
     # Compliance & Explainability Metadata
     is_synthetic: Mapped[bool] = mapped_column(Boolean, default=True)

@@ -19,6 +19,7 @@ async def get_priorities(
     min_score: Optional[float] = Query(0.0),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
+    flood_level_percent: Optional[float] = Query(None, ge=0, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -44,6 +45,7 @@ async def get_priorities(
             h.missing_fields,
             h.water_proximity_m,
             h.occupants,
+            h.report_evidence,
             z.elevation_m,
             z.deprivation_index,
             z.is_silent_zone,
@@ -83,12 +85,17 @@ async def get_priorities(
         missing = r[14].get("fields", []) if isinstance(r[14], dict) else []
         water_proximity_m = r[15]
         occupants = r[16]
-        elev = r[17]
-        depriv = r[18]
-        silent = r[19]
-        depth = r[20]
-        eta = r[21]
-        fallback = r[22]
+        elev = r[18]
+        report_evidence = r[17]
+        depriv = r[19]
+        silent = r[20]
+        depth = r[21]
+        eta = r[22]
+        fallback = r[23]
+        if flood_level_percent is not None:
+            from app.services.scoring import _config
+            max_depth = _config.get("what_if", {}).get("flood_level_max_depth_m", 2.5)
+            depth = max_depth * flood_level_percent / 100.0
 
         # Apply Priority Scoring Engine
         score_res = calculate_priority_score(
@@ -109,6 +116,7 @@ async def get_priorities(
             is_fallback_hazard=fallback,
             missing_fields=missing,
             water_proximity_m=water_proximity_m,
+            report_evidence=report_evidence,
         )
 
         item = {

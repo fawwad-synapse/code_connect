@@ -13,8 +13,8 @@ help:
 	@echo "  make docker-config - Validate Docker Compose configurations"
 
 setup:
-	@cd backend && uv sync
-	@cd frontend && npm install
+	@cd backend && uv sync --extra dev
+	@cd frontend && npm ci
 
 up:
 	docker compose up --build
@@ -32,8 +32,8 @@ migrate:
 	cd backend && uv run alembic upgrade head
 
 seed:
-	uv run python scripts/generate_synthetic_data.py
-	uv run python scripts/load_osm.py
+	cd backend && uv run python scripts/generate_synthetic_data.py
+	cd backend && uv run python scripts/load_osm.py
 
 doctor:
 	uv run python scripts/verify_env.py
@@ -43,7 +43,7 @@ lint:
 	cd frontend && npm run lint
 
 test:
-	cd backend && uv run pytest -v
+	cd backend && uv run --extra dev pytest -v
 
 docker-config:
 	docker compose config

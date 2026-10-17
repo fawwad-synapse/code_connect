@@ -93,6 +93,19 @@ export interface BlockedRoadItem {
   coords: number[][];
 }
 
+export interface AssignmentMapItem {
+  id: string;
+  resource_id: string;
+  resource_name: string;
+  resource_type: string;
+  resource_location: { lng: number; lat: number };
+  target_id: string;
+  target_location: { lng: number; lat: number };
+  transit_time_min: number;
+  reason: string;
+  confidence: number;
+}
+
 export const api = {
   async getHealth() {
     const res = await fetch(`${API_BASE}/api/v1/health`);
@@ -117,6 +130,7 @@ export const api = {
     min_score?: number;
     page?: number;
     page_size?: number;
+    flood_level_percent?: number;
   }): Promise<{ total: number; page: number; page_size: number; items: PriorityItem[] }> {
     const q = new URLSearchParams();
     if (params?.zone_id) q.set("zone_id", params.zone_id);
@@ -126,6 +140,7 @@ export const api = {
     if (params?.min_score) q.set("min_score", params.min_score.toString());
     if (params?.page) q.set("page", params.page.toString());
     if (params?.page_size) q.set("page_size", params.page_size.toString());
+    if (params?.flood_level_percent !== undefined) q.set("flood_level_percent", params.flood_level_percent.toString());
 
     const res = await fetch(`${API_BASE}/api/v1/priorities?${q.toString()}`);
     return res.json();
@@ -145,6 +160,11 @@ export const api = {
     const res = await fetch(`${API_BASE}/api/v1/assignments/optimize?use_fallback_solver=${useFallback}`, {
       method: "POST",
     });
+    return res.json();
+  },
+
+  async getAssignments(): Promise<{ assignments: AssignmentMapItem[]; assigned_count: number }> {
+    const res = await fetch(`${API_BASE}/api/v1/assignments`);
     return res.json();
   },
 
@@ -172,6 +192,9 @@ export const api = {
       headers,
       body: JSON.stringify(payload),
     });
+    if (!res.ok) {
+      throw new Error(`Report sync failed with HTTP ${res.status}`);
+    }
     return res.json();
   },
 

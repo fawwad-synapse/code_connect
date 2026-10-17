@@ -24,6 +24,7 @@ const DB_NAME = "rescuerank_offline_db";
 const DB_VERSION = 1;
 
 let dbPromise: Promise<IDBPDatabase<RescueRankDB>> | null = null;
+let syncInProgress: Promise<{ syncedCount: number; errors: number }> | null = null;
 
 function getDB(): Promise<IDBPDatabase<RescueRankDB>> {
   if (typeof window === "undefined") {
@@ -50,7 +51,9 @@ export async function queueOfflineReport(report: {
   photo_url?: string;
 }): Promise<QueuedReport> {
   const db = await getDB();
-  const idempotency_key = `offline_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const idempotency_key = typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `offline_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const item: QueuedReport = {
     ...report,
     idempotency_key,
@@ -71,7 +74,13 @@ export async function getPendingOfflineReports(): Promise<QueuedReport[]> {
   }
 }
 
-export async function syncOfflineReports(): Promise<{ syncedCount: number; errors: number }> {
+export function syncOfflineReports(): Promise<{ syncedCount: number; errors: number }> {
+  if (syncInProgress) return syncInProgress;
+  syncInProgress = performOfflineReportSync().finally(() => { syncInProgress = null; });
+  return syncInProgress;
+}
+
+async function performOfflineReportSync(): Promise<{ syncedCount: number; errors: number }> {
   try {
     const db = await getDB();
     const pending = await getPendingOfflineReports();

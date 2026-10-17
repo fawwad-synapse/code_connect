@@ -30,3 +30,18 @@ uncertainty_penalties:
   fallback_hazard_penalty: 0.20
   silent_zone_risk_floor: 0.65
   silent_zone_priority_uplift: 15.0
+
+# Crowd-report policy. Scores use a capped evidence uplift, not a database forecast mutation.
+report_evidence:
+  household_radius_m: 750
+  score_uplift_per_weight: 3.0
+  max_score_uplift: 15.0
+  max_household_weight: 5.0
+  late_after_hours: 6.0
+  late_report_weight: 0.35
+  conflicting_report_weight: 0.25
+  conflict_depth_difference_m: 0.5
+  conflict_resolution: "Higher effective confidence wins; ties go to the newer report. Record the conflict on both reports."
+
+what_if:
+  flood_level_max_depth_m: 2.5

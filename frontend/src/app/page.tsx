@@ -25,6 +25,8 @@ export default function OperationsCenterPage() {
   const [priorities, setPriorities] = useState<PriorityItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [floodLevel, setFloodLevel] = useState(50);
+  const [baselineScores, setBaselineScores] = useState<Record<string, number>>({});
   const [stats, setStats] = useState({
     criticalCases: 0,
     silentZones: 1,
@@ -34,10 +36,14 @@ export default function OperationsCenterPage() {
 
   const { selectedPriority, setSelectedPriority, mapLayers, toggleLayer } = useAppStore();
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (whatIfLevel: number | null = floodLevel) => {
     try {
       setLoading(true);
-      const prioRes = await api.getPriorities({ page_size: 15 });
+      const baselineRes = await api.getPriorities({ page_size: 15 });
+      setBaselineScores(Object.fromEntries(baselineRes.items.map((item) => [item.id, item.priority_score])));
+      const prioRes = whatIfLevel === null
+        ? baselineRes
+        : await api.getPriorities({ page_size: 15, flood_level_percent: whatIfLevel });
       setPriorities(prioRes.items || []);
       setTotalCount(prioRes.total || 0);
 
@@ -55,7 +61,7 @@ export default function OperationsCenterPage() {
   };
 
   useEffect(() => {
-    fetchDashboardData();
+    fetchDashboardData(50);
 
     // Setup live WebSocket connection for event broadcast
     const wsUrl =
@@ -103,6 +109,42 @@ export default function OperationsCenterPage() {
     <main className="flex-1 max-w-[1720px] w-full mx-auto p-4 md:p-6 space-y-5">
       {/* Simulator Toolbar for Live Demo */}
       <SimulatorToolbar onScenarioRun={handleScenarioFinished} />
+
+      <section className="rounded-xl border border-cyan-900/70 bg-slate-900/90 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-bold text-white">What-if flood level</h2>
+            <p className="text-xs text-slate-400">Overrides forecast depth for ranking only; it does not change stored forecasts.</p>
+          </div>
+          <label htmlFor="flood-level" className="text-sm font-bold text-cyan-300">{floodLevel}%</label>
+        </div>
+        <input
+          id="flood-level"
+          type="range"
+          min={0}
+          max={100}
+          step={1}
+          value={floodLevel}
+          onChange={(event) => {
+            const value = Number(event.target.value);
+            setFloodLevel(value);
+            void fetchDashboardData(value);
+          }}
+          className="mt-3 w-full accent-cyan-400"
+          aria-label="Flood level percentage"
+        />
+        <div className="mt-3 grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-5">
+          {priorities.slice(0, 5).map((item) => {
+            const before = baselineScores[item.id];
+            const delta = before === undefined ? null : item.priority_score - before;
+            return <div key={item.id} className="rounded-md bg-slate-950/70 px-2.5 py-2 text-xs text-slate-300">
+              <span className="font-semibold text-white">{item.zone_name}</span>
+              <span className="ml-2">{before === undefined ? "—" : before.toFixed(1)} → {item.priority_score.toFixed(1)}</span>
+              {delta !== null && <span className={`ml-1 font-bold ${delta >= 0 ? "text-emerald-400" : "text-amber-300"}`}>({delta >= 0 ? "+" : ""}{delta.toFixed(1)})</span>}
+            </div>;
+          })}
+        </div>
+      </section>
 
       {/* KPI Metrics Strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
@@ -193,7 +235,7 @@ export default function OperationsCenterPage() {
 
           {/* Interactive Leaflet Map */}
           <div className="flex-1 w-full relative">
-            <InteractiveMap />
+            <InteractiveMap floodLevelPercent={floodLevel} />
           </div>
         </div>
 

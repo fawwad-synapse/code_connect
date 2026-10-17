@@ -9,6 +9,7 @@ class ReportCreate(BaseModel):
     lng: Optional[float] = None
     lat: Optional[float] = None
     photo_url: Optional[str] = None
+    reported_at: Optional[datetime] = Field(default=None, description="When the incident was observed; old reports receive lower evidence weight")
 
 
 class ReportResponse(BaseModel):

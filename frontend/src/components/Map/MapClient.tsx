@@ -12,7 +12,7 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { api, ZoneItem, PriorityItem, ResourceItem, ShelterItem, BlockedRoadItem, WaterwayItem } from "@/lib/api";
+import { api, ZoneItem, PriorityItem, ResourceItem, ShelterItem, BlockedRoadItem, WaterwayItem, AssignmentMapItem } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
 
 // Fix Leaflet marker icons in React
@@ -30,6 +30,7 @@ interface Props {
   shelters?: ShelterItem[];
   blockedRoads?: BlockedRoadItem[];
   onSelectPriority?: (item: PriorityItem) => void;
+  floodLevelPercent?: number;
 }
 
 export function MapClient({
@@ -39,6 +40,7 @@ export function MapClient({
   shelters: propShelters,
   blockedRoads: propBlockedRoads,
   onSelectPriority,
+  floodLevelPercent,
 }: Props) {
   const { mapLayers, setSelectedPriority } = useAppStore();
   const [internalZones, setInternalZones] = useState<ZoneItem[]>([]);
@@ -48,13 +50,14 @@ export function MapClient({
   const [internalShelters, setInternalShelters] = useState<ShelterItem[]>([]);
   const [internalBlockedRoads, setInternalBlockedRoads] = useState<BlockedRoadItem[]>([]);
   const [waterways, setWaterways] = useState<WaterwayItem[]>([]);
+  const [assignments, setAssignments] = useState<AssignmentMapItem[]>([]);
 
   useEffect(() => {
     if (!propZones || propZones.length === 0) {
       api.getZones().then((res) => setInternalZones(res.zones || [])).catch(() => {});
     }
     if (!propPriorities || propPriorities.length === 0) {
-      api.getPriorities({ page_size: 150 }).then((res) => {
+      api.getPriorities({ page_size: 150, flood_level_percent: floodLevelPercent }).then((res) => {
         setInternalPriorities(res.items || []);
         setPriorityTotal(res.total || 0);
       }).catch(() => {});
@@ -67,7 +70,8 @@ export function MapClient({
       }).catch(() => {});
     }
     api.getWaterways().then((res) => setWaterways(res.waterways || [])).catch(() => {});
-  }, [propZones, propPriorities, propResources]);
+    api.getAssignments().then((res) => setAssignments(res.assignments || [])).catch(() => {});
+  }, [propZones, propPriorities, propResources, floodLevelPercent]);
 
   const zones = propZones && propZones.length > 0 ? propZones : internalZones;
   const priorities = propPriorities && propPriorities.length > 0 ? propPriorities : internalPriorities;
@@ -84,6 +88,10 @@ export function MapClient({
     if (item.priority_score >= 25) return "#eab308"; // Yellow for medium
     return "#22c55e"; // Green for low
   };
+
+  const assignmentColor = (type: string) => ({
+    boat: "#22d3ee", truck: "#f59e0b", ambulance: "#f43f5e", volunteer_team: "#34d399",
+  }[type.toLowerCase()] || "#a78bfa");
 
   const getZoneStyle = (feature: any) => {
     const isSilent = feature?.properties?.is_silent_zone;
@@ -236,6 +244,26 @@ export function MapClient({
               </Popup>
             </Marker>
           ))}
+
+        {mapLayers.resources && assignments.map((assignment) => (
+          <Polyline
+            key={assignment.id}
+            positions={[
+              [assignment.resource_location.lat, assignment.resource_location.lng],
+              [assignment.target_location.lat, assignment.target_location.lng],
+            ]}
+            color={assignmentColor(assignment.resource_type)}
+            weight={3}
+            opacity={0.85}
+          >
+            <Popup>
+              <div className="text-xs text-slate-100">
+                <strong>{assignment.resource_name}</strong> to {assignment.target_id}<br />
+                ETA: {assignment.transit_time_min} min
+              </div>
+            </Popup>
+          </Polyline>
+        ))}
 
         {/* Households Priority Pins */}
         {mapLayers.households &&

@@ -1,5 +1,4 @@
-from typing import List, Union
-from pydantic import AnyHttpUrl, field_validator
+from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,14 +12,14 @@ class Settings(BaseSettings):
     APP_NAME: str = "RescueRank"
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
-    SECRET_KEY: str = "rescuerank_super_secret_jwt_signing_key_32chars_min!"
+    SECRET_KEY: str = ""
     API_V1_PREFIX: str = "/api/v1"
     CORS_ORIGINS: List[str] = ["http://localhost:3000"]
     DEMO_CITY: str = "Karachi, Pakistan"
     ENABLE_SIMULATOR: bool = True
 
     # Database
-    DATABASE_URL: str = "postgresql+asyncpg://rescuerank:rescuerank_secret@localhost:5433/rescuerank_db"
+    DATABASE_URL: str = "postgresql+asyncpg://rescuerank@localhost:5433/rescuerank_db"
 
     # LLM Settings
     LLM_PROVIDER: str = "openrouter"  # openrouter | mistral | groq | openai

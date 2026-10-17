@@ -241,6 +241,7 @@ def calculate_priority_score(
     report_confidence: float = 1.0,
     missing_fields: Optional[List[str]] = None,
     water_proximity_m: Optional[float] = None,
+    report_evidence: float = 0.0,
 ) -> PriorityScoreResult:
     """
     Calculates transparent priority score (0-100) using the exact formula:
@@ -278,6 +279,13 @@ def calculate_priority_score(
     if is_silent_zone:
         uplift = _config.get("uncertainty_penalties", {}).get("silent_zone_priority_uplift", 15.0)
         raw_score = min(100.0, raw_score + uplift)
+
+    report_cfg = _config.get("report_evidence", {})
+    report_uplift = min(
+        report_cfg.get("max_score_uplift", 15.0),
+        max(0.0, report_evidence) * report_cfg.get("score_uplift_per_weight", 3.0),
+    )
+    raw_score = min(100.0, raw_score + report_uplift)
 
     final_score = round(max(0.0, min(100.0, raw_score)), 1)
 

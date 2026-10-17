@@ -9,8 +9,39 @@ from app.schemas.report import ReportCreate, ReportListResponse, ReportResponse
 from app.agents.pipeline import report_pipeline
 from app.api.v1.ws import ws_manager
 from app.services.dedupe import find_matching_cluster
+from app.services.scoring import _config
 
 router = APIRouter()
+
+
+def report_conflict(previous: dict, incoming: dict, config: dict) -> bool:
+    """A conflict is a materially different depth estimate or medical-need claim."""
+    threshold = config.get("conflict_depth_difference_m", 0.5)
+    previous_depth = previous.get("water_depth_est_m", previous.get("water_depth_m"))
+    incoming_depth = incoming.get("water_depth_est_m", incoming.get("water_depth_m"))
+    depth_conflict = (
+        previous_depth is not None and incoming_depth is not None
+        and abs(float(previous_depth) - float(incoming_depth)) >= threshold
+    )
+    previous_medical = previous.get("medical_emergency", previous.get("medical_need"))
+    incoming_medical = incoming.get("medical_emergency", incoming.get("medical_need"))
+    return depth_conflict or (
+        previous_medical is not None and incoming_medical is not None
+        and bool(previous_medical) != bool(incoming_medical)
+    )
+
+
+def effective_report_weight(confidence: float, reported_at: datetime, received_at: datetime, config: dict) -> float:
+    """Reports older than the configured window retain reduced, non-zero evidence weight."""
+    age_hours = max(0.0, (received_at - reported_at).total_seconds() / 3600)
+    late_after = config.get("late_after_hours", 6.0)
+    age_weight = config.get("late_report_weight", 0.35) if age_hours > late_after else 1.0
+    return round(max(0.0, min(1.0, confidence)) * age_weight, 4)
+
+
+def incoming_report_wins(previous_weight: float, incoming_weight: float, previous_at: datetime, incoming_at: datetime) -> bool:
+    """Higher effective confidence wins; recency breaks ties."""
+    return (incoming_weight, incoming_at) >= (previous_weight, previous_at)
 
 
 def duplicate_candidate_cutoff(now: datetime) -> datetime:
@@ -41,6 +72,10 @@ async def create_report(
     Processes untrusted text via LangGraph pipeline and spatial deduplication.
     """
     now = datetime.now(timezone.utc)
+    reported_at = report_in.reported_at or now
+    if reported_at.tzinfo is None:
+        reported_at = reported_at.replace(tzinfo=timezone.utc)
+    report_policy = _config.get("report_evidence", {})
 
     # 1. Idempotency Check (PWA offline sync safety)
     if x_idempotency_key:
@@ -65,15 +100,18 @@ async def create_report(
 
     # 2. Fetch recent reports for spatial & semantic deduplication
     recent_q = text("""
-        SELECT id, raw_text, ST_X(location) as lon, ST_Y(location) as lat, cluster_id
+        SELECT id, raw_text, ST_X(location) as lon, ST_Y(location) as lat, cluster_id,
+               parsed, confidence, reported_at
         FROM reports
         WHERE reported_at > :cutoff
+        ORDER BY reported_at DESC
         LIMIT 50;
     """)
     cutoff = duplicate_candidate_cutoff(now)
     recents_res = await db.execute(recent_q, {"cutoff": cutoff})
     recent_reports = [
-        {"id": r[0], "raw_text": r[1], "lon": r[2], "lat": r[3], "cluster_id": r[4]}
+        {"id": r[0], "raw_text": r[1], "lon": r[2], "lat": r[3], "cluster_id": r[4],
+         "parsed": r[5] if isinstance(r[5], dict) else {}, "confidence": r[6], "reported_at": r[7]}
         for r in recents_res.fetchall()
     ]
 
@@ -109,11 +147,59 @@ async def create_report(
 
     pipeline_res = await report_pipeline.ainvoke(initial_state)
     parsed = pipeline_res.get("parsed_data", {})
-    confidence = pipeline_res.get("confidence", 0.80)
+    confidence = float(pipeline_res.get("confidence", 0.80))
 
     # If cluster has duplicates, raise confidence
     if cluster_match:
         confidence = min(0.95, confidence + 0.15)
+
+    conflict_with = None
+    conflict_winner = True
+    previous_report = None
+    if cluster_match:
+        previous_report = next((r for r in recent_reports if r["cluster_id"] == cluster_match[0]), None)
+        if previous_report and report_conflict(previous_report["parsed"], parsed, report_policy):
+            conflict_with = previous_report["id"]
+            old_weight = effective_report_weight(
+                previous_report["confidence"], previous_report["reported_at"], now, report_policy
+            )
+            new_weight = effective_report_weight(confidence, reported_at, now, report_policy)
+            conflict_winner = incoming_report_wins(old_weight, new_weight, previous_report["reported_at"], reported_at)
+            if not conflict_winner:
+                confidence = min(confidence, confidence * report_policy.get("conflicting_report_weight", 0.25))
+
+    evidence_weight = effective_report_weight(confidence, reported_at, now, report_policy)
+    qualifies_for_evidence = report_in.source == "volunteer" or confidence >= 0.60
+    if not qualifies_for_evidence:
+        evidence_weight = 0.0
+
+    parsed = dict(parsed)
+    parsed["_evidence"] = {"weight": evidence_weight, "late": reported_at < now - timedelta(hours=report_policy.get("late_after_hours", 6.0))}
+    if conflict_with:
+        parsed["_conflict"] = {
+            "with_report_id": conflict_with,
+            "winner_report_id": report_id if conflict_winner else conflict_with,
+            "resolution": report_policy.get("conflict_resolution"),
+        }
+        if previous_report:
+            import json
+            await db.execute(text("""
+                UPDATE reports SET parsed = jsonb_set(COALESCE(parsed, '{}'::jsonb), '{_conflict}', CAST(:conflict AS jsonb))
+                WHERE id = :id
+            """), {
+                "id": previous_report["id"],
+                "conflict": json.dumps({
+                    "with_report_id": report_id,
+                    "winner_report_id": report_id if conflict_winner else previous_report["id"],
+                    "resolution": report_policy.get("conflict_resolution"),
+                }),
+            })
+            if conflict_winner and previous_report.get("lon") is not None:
+                old_weight = effective_report_weight(previous_report["confidence"], previous_report["reported_at"], now, report_policy)
+                await db.execute(text("""
+                    UPDATE households SET report_evidence = GREATEST(0, report_evidence - :weight)
+                    WHERE ST_DWithin(location::geography, ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography, :radius)
+                """), {"weight": old_weight, "lon": previous_report["lon"], "lat": previous_report["lat"], "radius": report_policy.get("household_radius_m", 750)})
 
     # 5. Insert into Database
     geom_wkt = f"SRID=4326;POINT({report_in.lng} {report_in.lat})" if report_in.lng is not None and report_in.lat is not None else None
@@ -135,7 +221,7 @@ async def create_report(
         "raw_text": report_in.raw_text,
         "parsed": json.dumps(parsed),
         "wkt": geom_wkt,
-        "reported_at": now,
+        "reported_at": reported_at,
         "received_at": now,
         "confidence": confidence,
         "cluster_id": cluster_id,
@@ -143,7 +229,39 @@ async def create_report(
         "photo_url": report_in.photo_url,
         "ikey": x_idempotency_key,
     })
+
+    # Count qualifying evidence at its containing zone and apply a capped nearby-household boost.
+    affected_zone = None
+    if report_in.lng is not None and report_in.lat is not None and evidence_weight > 0:
+        zone_row = (await db.execute(text("""
+            SELECT id FROM zones
+            WHERE ST_Intersects(geometry, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326))
+            ORDER BY id LIMIT 1
+        """), {"lng": report_in.lng, "lat": report_in.lat})).fetchone()
+        if zone_row:
+            affected_zone = zone_row[0]
+            await db.execute(text("UPDATE zones SET report_count = report_count + 1, is_silent_zone = false WHERE id = :zone_id"), {"zone_id": affected_zone})
+        await db.execute(text("""
+            UPDATE households
+            SET report_evidence = LEAST(:max_weight, report_evidence + :weight)
+            WHERE ST_DWithin(location::geography, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radius)
+        """), {
+            "max_weight": report_policy.get("max_household_weight", 5.0), "weight": evidence_weight,
+            "lng": report_in.lng, "lat": report_in.lat, "radius": report_policy.get("household_radius_m", 750),
+        })
     await db.commit()
+
+    await ws_manager.broadcast("PRIORITY_UPDATE", {
+        "reason": "report_evidence_changed", "report_id": report_id,
+        "zone_id": affected_zone, "cluster_id": cluster_id,
+        "evidence_weight": evidence_weight,
+    })
+
+    # Reports can alter the order; refresh an existing plan so dispatch stays in sync.
+    has_assignments = await db.execute(text("SELECT EXISTS(SELECT 1 FROM assignments)"))
+    if has_assignments.scalar():
+        from app.api.v1.resources import optimize_assignments
+        await optimize_assignments(use_fallback_solver=False, db=db)
 
     # 6. Broadcast Real-time WebSocket Event
     await ws_manager.broadcast("NEW_REPORT", {
@@ -169,6 +287,7 @@ async def create_report(
         "is_duplicate": cluster_match is not None,
         "verified": report_in.source == "volunteer",
         "photo_url": report_in.photo_url,
+        "reported_at": reported_at,
     }
 
 

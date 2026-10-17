@@ -5,9 +5,8 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-rescuerank}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rescuerank_secret}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-rescuerank_db}
-      POSTGRES_HOST_AUTH_METHOD: "trust"
     ports:
       - "${POSTGRES_PORT:-5433}:5432"
     volumes:
@@ -30,12 +29,12 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-rescuerank}:${POSTGRES_PASSWORD:-rescuerank_secret}@db:5432/${POSTGRES_DB:-rescuerank_db}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-rescuerank}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-rescuerank_db}
       ENVIRONMENT: development
       DEBUG: "true"
-      SECRET_KEY: ${SECRET_KEY:-rescuerank_super_secret_jwt_signing_key_32chars_min!}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
       API_V1_PREFIX: /api/v1
-      CORS_ORIGINS: '["http://localhost:3000", "http://127.0.0.1:3000"]'
+      CORS_ORIGINS: ${CORS_ORIGINS:?Set CORS_ORIGINS in .env}
       DEMO_CITY: "Karachi, Pakistan"
       ENABLE_SIMULATOR: "true"
       LLM_PROVIDER: ${LLM_PROVIDER:-openrouter}
@@ -73,7 +72,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:8000
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     container_name: rescuerank-frontend
     restart: unless-stopped
     depends_on:
@@ -81,7 +80,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     ports:
       - "3000:3000"
     healthcheck:
