@@ -9,7 +9,7 @@ import { UI_COPY } from "@/lib/ui-copy";
 export default function PrepositioningPage() {
   return (
     <main className="flex-1 max-w-[1720px] w-full mx-auto p-4 md:p-6 space-y-6">
-      <PageHeader title={UI_COPY.pages.preparationTitle} description={UI_COPY.pages.preparationDescription} icon={<Clock className="h-6 w-6" />} backHref="/" />
+      <PageHeader title={UI_COPY.pages.preparationTitle} description={UI_COPY.pages.preparationDescription} icon={<Clock className="h-6 w-6" />} backHref="/" variant="plain" />
 
       <Timeline />
     </main>

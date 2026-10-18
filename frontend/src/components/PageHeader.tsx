@@ -9,11 +9,14 @@ interface PageHeaderProps {
   icon?: ReactNode;
   backHref?: string;
   actions?: ReactNode;
+  variant?: "card" | "plain";
 }
 
-export function PageHeader({ title, description, icon, backHref, actions }: PageHeaderProps) {
+export function PageHeader({ title, description, icon, backHref, actions, variant = "card" }: PageHeaderProps) {
   return (
-    <header className="flex flex-col gap-3 rounded-xl border border-slate-700 bg-slate-900 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+    <header className={variant === "plain"
+      ? "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+      : "flex flex-col gap-3 rounded-xl border border-slate-700 bg-slate-900 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5"}>
       <div className="flex min-w-0 items-center gap-3">
         {backHref && (
           <Link
