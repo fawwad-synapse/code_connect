@@ -232,8 +232,8 @@ async def list_assignments(db: AsyncSession = Depends(get_db)):
 @router.post("/assignments/optimize")
 async def optimize_assignments(
     use_fallback_solver: bool = False,
-    flood_level_percent: Optional[float] = Query(None, ge=0, le=100),
-    candidate_limit: int = Query(100, ge=1, le=600),
+    flood_level_percent: Optional[float] = None,
+    candidate_limit: int = 100,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -241,6 +241,10 @@ async def optimize_assignments(
     Enforces medical capabilities, vehicle capacity, and transit times.
     Returns assignments, queued targets, and mathematical conflict explanations.
     """
+    if flood_level_percent is not None and not 0 <= flood_level_percent <= 100:
+        raise HTTPException(status_code=422, detail="flood_level_percent must be between 0 and 100")
+    if not 1 <= candidate_limit <= 600:
+        raise HTTPException(status_code=422, detail="candidate_limit must be between 1 and 600")
     # 1. Fetch available resources
     r_query = text("SELECT id, name, type, capacity, ST_X(location) as lon, ST_Y(location) as lat, status, medical_capable FROM resources WHERE status = 'available';")
     r_rows = (await db.execute(r_query)).fetchall()
