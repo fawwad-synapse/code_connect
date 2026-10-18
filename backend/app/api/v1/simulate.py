@@ -134,7 +134,7 @@ async def run_simulation_scenario(
         # Re-run the actual optimizer on current synthetic records; do not return canned households/scores.
         from app.api.v1.resources import optimize_assignments
         plan = await optimize_assignments(
-            use_fallback_solver=True,
+            use_fallback_solver=False,
             flood_level_percent=None,
             candidate_limit=100,
             db=db,

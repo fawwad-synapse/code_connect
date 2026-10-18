@@ -270,6 +270,7 @@ async def test_simulate_conflict_scenario():
         assert data["simulated"] is True
         assert "chosen_allocation" not in data
         assert isinstance(data["conflicts"], list)
+        assert data["conflicts"], "Live synthetic resource scarcity should produce at least one computed conflict"
         assignment_scores = {item["target_id"]: item["priority_score"] for item in data["assignments"]}
         for conflict in data["conflicts"]:
             assert conflict["winner_id"] in assignment_scores

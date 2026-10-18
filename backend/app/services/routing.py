@@ -156,6 +156,7 @@ def solve_greedy_assignment(
             )
 
     unassigned = _unassigned_targets(sorted_targets, assigned_targets, resources, remaining)
+    conflicts = build_conflict_explanations(assignments, unassigned)
     duration_ms = (time.time() - start_time) * 1000.0
     total_score = sum(a.priority_score for a in assignments)
 
