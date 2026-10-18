@@ -80,6 +80,9 @@ def resource_board_response(opt_res: Any, targets: List[Dict[str, Any]], resourc
         "assignments": assignments,
         "unassigned_targets": opt_res.unassigned_targets,
         "candidate_count": len(targets),
+        "considered_count": len(targets),
+        "assigned_count": len(assignments),
+        "unassigned_count": len(opt_res.unassigned_targets),
         "conflicts": conflicts,
         "total_score_covered": opt_res.total_score_covered,
         "solver_used": opt_res.solver_used,
@@ -173,6 +176,7 @@ async def list_assignments(db: AsyncSession = Depends(get_db)):
 async def optimize_assignments(
     use_fallback_solver: bool = False,
     flood_level_percent: Optional[float] = Query(None, ge=0, le=100),
+    candidate_limit: int = Query(100, ge=1, le=600),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -235,7 +239,7 @@ async def optimize_assignments(
             "occupants": h["occupants"] or 1, "confidence": score.confidence,
         })
     targets.sort(key=lambda target: (-target["priority_score"], target["id"]))
-    targets = targets[:25]
+    targets = targets[:candidate_limit]
 
     # 3. Solve using OR-Tools or Greedy Fallback
     if use_fallback_solver:

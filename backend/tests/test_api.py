@@ -145,6 +145,14 @@ async def test_resources_and_optimize():
         opt_data = opt_resp.json()
         assert "assignments" in opt_data
         assert "total_score_covered" in opt_data
+        assert opt_data["considered_count"] == 100
+        assert opt_data["assigned_count"] == len(opt_data["assignments"])
+        assert opt_data["unassigned_count"] == len(opt_data["unassigned_targets"])
+        assert opt_data["considered_count"] == opt_data["assigned_count"] + opt_data["unassigned_count"]
+        limited = await client.post("/api/v1/assignments/optimize?use_fallback_solver=true&candidate_limit=12")
+        assert limited.status_code == 200
+        assert limited.json()["considered_count"] == 12
+        assert all(target.get("reason") for target in limited.json()["unassigned_targets"])
         if opt_data["assignments"]:
             assert {"id", "transit_time_min", "overridden"} <= opt_data["assignments"][0].keys()
         if opt_data["conflicts"]:

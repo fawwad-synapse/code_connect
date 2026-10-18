@@ -70,6 +70,7 @@ export function ResourceBoard() {
   const [unassignedTargets, setUnassignedTargets] = useState<UnassignedTarget[]>([]);
   const [hasOptimization, setHasOptimization] = useState(false);
   const [candidateCount, setCandidateCount] = useState(0);
+  const [unassignedCount, setUnassignedCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [optimizationError, setOptimizationError] = useState(false);
@@ -106,6 +107,7 @@ export function ResourceBoard() {
     setConflicts(latestPlan.conflicts || []);
     setUnassignedTargets(latestPlan.unassigned_targets || []);
     setCandidateCount(latestPlan.candidate_count || 0);
+    setUnassignedCount(latestPlan.unassigned_count ?? latestPlan.unassigned_targets?.length ?? 0);
     setHasOptimization(true);
   }, [latestPlan]);
 
@@ -127,6 +129,7 @@ export function ResourceBoard() {
       setConflicts(result.conflicts || []);
       setUnassignedTargets(result.unassigned_targets || []);
       setCandidateCount(result.candidate_count || 0);
+      setUnassignedCount(result.unassigned_count ?? result.unassigned_targets?.length ?? 0);
       setHasOptimization(true);
       toast.success(
         `Optimization complete: ${result.assignments?.length || 0} teams dispatched via ${
@@ -331,13 +334,17 @@ export function ResourceBoard() {
         <div className="lg:col-span-2 space-y-6">
           {hasOptimization && (
             <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-blue-800/60 bg-blue-950/20 p-3">
+                <div className="text-[10px] uppercase font-bold tracking-wider text-blue-300">Households considered</div>
+                <div className="mt-1 text-2xl font-black text-white">{candidateCount}</div>
+              </div>
               <div className="rounded-xl border border-emerald-800/60 bg-emerald-950/20 p-3">
-                <div className="text-[10px] uppercase font-bold tracking-wider text-emerald-300">Assigned ({candidateCount} candidates)</div>
+                <div className="text-[10px] uppercase font-bold tracking-wider text-emerald-300">Assigned</div>
                 <div className="mt-1 text-2xl font-black text-white">{assignments.length}</div>
               </div>
-              <div className="rounded-xl border border-amber-800/60 bg-amber-950/20 p-3">
-                <div className="text-[10px] uppercase font-bold tracking-wider text-amber-300">Unassigned households</div>
-                <div className="mt-1 text-2xl font-black text-white">{unassignedTargets.length}</div>
+              <div className="rounded-xl border border-amber-800/60 bg-amber-950/20 p-3 col-span-2">
+                <div className="text-[10px] uppercase font-bold tracking-wider text-amber-300">Unassigned</div>
+                <div className="mt-1 text-2xl font-black text-white">{unassignedCount}</div>
               </div>
             </div>
           )}
