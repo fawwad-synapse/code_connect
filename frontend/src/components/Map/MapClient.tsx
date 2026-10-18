@@ -85,7 +85,6 @@ export function MapClient({
   const displayedTotal = propPriorities && propPriorities.length > 0 ? propPriorities.length : priorityTotal;
 
   const getPriorityColor = (item: PriorityItem) => {
-    if (item.is_silent_zone) return "#a855f7"; // Purple for uncertain / silent
     if (item.priority_score >= 70) return "#ef4444"; // Red for critical
     if (item.priority_score >= 45) return "#f97316"; // Orange for high
     if (item.priority_score >= 25) return "#eab308"; // Yellow for medium
@@ -100,19 +99,9 @@ export function MapClient({
     const isSilent = feature?.properties?.is_silent_zone;
     const depth = feature?.properties?.hazard_forecast?.depth_m_forecast || 0.0;
 
-    if (isSilent) {
-      return {
-        fillColor: "#9333ea",
-        weight: 2,
-        opacity: 0.9,
-        color: "#c084fc",
-        dashArray: "4, 6",
-        fillOpacity: 0.25,
-      };
-    }
-
+    let style: L.PathOptions;
     if (depth >= 1.2) {
-      return {
+      style = {
         fillColor: "#dc2626",
         weight: 2,
         opacity: 0.8,
@@ -120,7 +109,7 @@ export function MapClient({
         fillOpacity: 0.35,
       };
     } else if (depth >= 0.6) {
-      return {
+      style = {
         fillColor: "#ea580c",
         weight: 1.5,
         opacity: 0.8,
@@ -128,7 +117,7 @@ export function MapClient({
         fillOpacity: 0.25,
       };
     } else {
-      return {
+      style = {
         fillColor: "#2563eb",
         weight: 1.5,
         opacity: 0.7,
@@ -136,6 +125,9 @@ export function MapClient({
         fillOpacity: 0.15,
       };
     }
+    // Purple dashed outline shows missing information; the fill stays tied to
+    // forecast depth so uncertainty never hides the flood signal.
+    return isSilent ? { ...style, weight: 2, color: "#c084fc", dashArray: "4, 6" } : style;
   };
 
   return (
@@ -180,7 +172,7 @@ export function MapClient({
                 const popupContent = `
                   <div style="font-size: 12px; color: #f8fafc;">
                     <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px; color: #38bdf8;">
-                      ${z.name} ${z.is_silent_zone ? '<span style="color: #c084fc; font-size: 10px; border: 1px solid #c084fc; padding: 1px 4px; border-radius: 4px;">SILENT ZONE</span>' : ''}
+                      ${z.name} ${z.is_silent_zone ? `<span style="color: #c084fc; font-size: 10px; border: 1px solid #c084fc; padding: 1px 4px; border-radius: 4px;">${UI_COPY.terms.silentArea}</span>` : ''}
                     </div>
                     <div><b>${UI_COPY.terms.floodRisk}:</b> ${z.hazard_forecast?.depth_m_forecast}m</div>
                     <div><b>Time until expected:</b> about ${z.hazard_forecast?.eta_hours} hours</div>
@@ -313,27 +305,33 @@ export function MapClient({
 
       {/* Floating Map Legend & Layer Toggles */}
       <div className="absolute bottom-4 left-4 z-[1000] bg-slate-900/90 backdrop-blur border border-slate-800 rounded-lg p-2.5 text-xs text-slate-300 space-y-1.5 shadow-xl">
-        <div className="font-bold text-white text-2xs uppercase tracking-wider">Map Legend</div>
+        <div className="font-bold text-white text-sm">{UI_COPY.map.legendTitle}</div>
+        <p className="max-w-56 text-[11px] leading-snug text-slate-200">{UI_COPY.map.pinHelp}</p>
         {displayedTotal > visiblePriorities.length && (
           <div className="rounded bg-amber-500/10 px-1.5 py-1 text-[10px] font-semibold text-amber-200 border border-amber-500/30">
-            Showing {visiblePriorities.length} of {displayedTotal} household pins by priority
+            {UI_COPY.map.showingPins(visiblePriorities.length, displayedTotal)}
           </div>
         )}
+        <div className="border-t border-slate-700 pt-1 text-[11px] font-semibold text-white">Household help priority</div>
         <div className="flex items-center justify-between gap-2"><RiskBadge score={70} compact /><span>70+</span></div>
-        <div className="flex items-center justify-between gap-2"><RiskBadge score={45} compact /><span>45–69</span></div>
-        <div className="flex items-center justify-between gap-2"><RiskBadge score={25} compact /><span>25–44</span></div>
-        <div className="flex items-center justify-between gap-2"><RiskBadge score={24} compact /><span>0–24</span></div>
+        <div className="flex items-center justify-between gap-2"><RiskBadge score={45} compact /><span>45-69</span></div>
+        <div className="flex items-center justify-between gap-2"><RiskBadge score={25} compact /><span>25-44</span></div>
+        <div className="flex items-center justify-between gap-2"><RiskBadge score={24} compact /><span>0-24</span></div>
+        <div className="border-t border-slate-700 pt-1 text-[11px] font-semibold text-white">Forecast water depth</div>
+        <div className="flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-3 rounded bg-red-600" />{UI_COPY.map.deepWater}</div>
+        <div className="flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-3 rounded bg-orange-600" />{UI_COPY.map.risingWater}</div>
+        <div className="flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-3 rounded bg-blue-600" />{UI_COPY.map.lowerWater}</div>
         <div className="flex items-center gap-1.5">
           <CircleHelp aria-hidden="true" className="h-3.5 w-3.5 text-purple-300" />
-          <span>{UI_COPY.risk.uncertain} (separate from risk)</span>
+          <span>{UI_COPY.map.fewReports}</span>
         </div>
         <div className="flex items-center gap-1.5 pt-1 border-t border-slate-800">
           <span className="w-3 h-0.5 border-t-2 border-dashed border-rose-500"></span>
-          <span>Blocked road</span>
+          <span>{UI_COPY.map.blockedRoad}</span>
           <span className="rounded border border-amber-500/40 bg-amber-500/10 px-1 text-[9px] font-bold text-amber-300">SIMULATED</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span>Household pins</span>
+          <span>{UI_COPY.map.householdPins}</span>
           <span className="rounded border border-amber-500/40 bg-amber-500/10 px-1 text-[9px] font-bold text-amber-300">SYNTHETIC</span>
         </div>
       </div>

@@ -153,6 +153,17 @@ export const UI_COPY = {
     threeHours: "3 hours before — contact households",
     now: "During the emergency — respond",
   },
+  map: {
+    legendTitle: "How to read this map",
+    pinHelp: "Household pins show who may need help sooner. Flood-area fill shows forecast water depth.",
+    deepWater: "High expected water: 1.2m or more",
+    risingWater: "Rising water: 0.6m to 1.2m",
+    lowerWater: "Lower forecast water: under 0.6m",
+    fewReports: "Few reports — information may be missing; this area is not necessarily safe.",
+    blockedRoad: "Blocked road",
+    householdPins: "Household pins",
+    showingPins: (shown: number, total: number) => `Showing ${shown} of ${total} household pins by help priority`,
+  },
 } as const;
 
 export function getRiskCopy(score: number) {
