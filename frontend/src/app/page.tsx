@@ -21,6 +21,7 @@ import { api, PriorityItem } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
 import { toast } from "sonner";
 import { UI_COPY } from "@/lib/ui-copy";
+import { RiskBadge } from "@/components/RiskBadge";
 
 export default function OperationsCenterPage() {
   const [priorities, setPriorities] = useState<PriorityItem[]>([]);
@@ -283,9 +284,10 @@ export default function OperationsCenterPage() {
                     <span className="text-xs font-bold text-white">{item.zone_name}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-extrabold px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-400 border border-rose-500/30">
-                      {item.priority_score.toFixed(1)}
+                    <span className="text-xs font-extrabold px-2 py-0.5 rounded-md bg-slate-800 text-white border border-slate-600" title={UI_COPY.terms.helpPriorityHelp}>
+                      {UI_COPY.terms.helpPriority.split(" (")[0]} {item.priority_score.toFixed(1)}
                     </span>
+                    <RiskBadge score={item.priority_score} compact />
                   </div>
                 </div>
 

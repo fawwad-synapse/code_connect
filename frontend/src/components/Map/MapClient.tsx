@@ -15,6 +15,8 @@ import "leaflet/dist/leaflet.css";
 import { api, ZoneItem, PriorityItem, ResourceItem, ShelterItem, BlockedRoadItem, WaterwayItem, AssignmentMapItem } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
 import { UI_COPY } from "@/lib/ui-copy";
+import { RiskBadge } from "@/components/RiskBadge";
+import { CircleHelp } from "lucide-react";
 
 // Fix Leaflet marker icons in React
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -288,7 +290,9 @@ export function MapClient({
               <Popup>
                 <div className="text-xs text-slate-100">
                   <div className="font-bold text-white mb-0.5">{p.id} ({p.zone_name})</div>
-                  <div className="font-bold text-rose-400" title={UI_COPY.terms.helpPriorityHelp}>{UI_COPY.terms.helpPriority}: {p.priority_score}/100</div>
+                  <div className="my-1"><RiskBadge score={p.priority_score} compact /></div>
+                  <div className="font-bold text-slate-200" title={UI_COPY.terms.helpPriorityHelp}>{UI_COPY.terms.helpPriority}: {p.priority_score}/100</div>
+                  {p.is_silent_zone && <div className="mt-1 flex items-center gap-1 text-purple-200"><CircleHelp aria-hidden="true" className="h-3 w-3" />{UI_COPY.risk.uncertain}</div>}
                   <div>Age: {p.age} {p.mobility_impaired && "| Needs help moving"} {p.chronic_medical_need && "| Medical help needed"}</div>
                   <div title={UI_COPY.terms.peopleNotReachedHelp}>{UI_COPY.terms.peopleNotReached}: {Math.round(p.warning_gap * 100)}%</div>
                   {p.water_proximity_m != null && <div>Nearest waterway: {Math.round(p.water_proximity_m)}m</div>}
@@ -315,21 +319,13 @@ export function MapClient({
             Showing {visiblePriorities.length} of {displayedTotal} household pins by priority
           </div>
         )}
+        <div className="flex items-center justify-between gap-2"><RiskBadge score={70} compact /><span>70+</span></div>
+        <div className="flex items-center justify-between gap-2"><RiskBadge score={45} compact /><span>45–69</span></div>
+        <div className="flex items-center justify-between gap-2"><RiskBadge score={25} compact /><span>25–44</span></div>
+        <div className="flex items-center justify-between gap-2"><RiskBadge score={24} compact /><span>0–24</span></div>
         <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
-          <span>Critical (&ge;70)</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
-          <span>High (&ge;45)</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
-          <span>Medium (&ge;25)</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse"></span>
-          <span>Silent Zone / Uncertain</span>
+          <CircleHelp aria-hidden="true" className="h-3.5 w-3.5 text-purple-300" />
+          <span>{UI_COPY.risk.uncertain} (separate from risk)</span>
         </div>
         <div className="flex items-center gap-1.5 pt-1 border-t border-slate-800">
           <span className="w-3 h-0.5 border-t-2 border-dashed border-rose-500"></span>

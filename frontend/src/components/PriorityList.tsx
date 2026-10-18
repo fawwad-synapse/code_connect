@@ -6,6 +6,7 @@ import { PriorityItem } from "@/lib/api";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { useAppStore } from "@/lib/store";
 import { UI_COPY } from "@/lib/ui-copy";
+import { RiskBadge } from "./RiskBadge";
 
 interface Props {
   priorities: PriorityItem[];
@@ -145,6 +146,8 @@ export function PriorityList({ priorities, onSelectPriority, selectedId }: Props
                       {item.lives_alone && <span>{UI_COPY.list.livesAlone}</span>}
                       {item.mobility_impaired && <span>{UI_COPY.list.mobilityHelp}</span>}
                     </div>
+
+                    <RiskBadge score={item.priority_score} compact />
 
                     <div className="pt-0.5">
                       <ConfidenceBadge
