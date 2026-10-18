@@ -140,6 +140,8 @@ async def test_resources_and_optimize():
         assert len(data["shelters"]) >= 4
         assert all({"expected_demand", "remaining_capacity", "overflow_by", "alternative_shelter"} <= shelter.keys() for shelter in data["shelters"])
         assert all(shelter["expected_demand"] >= 0 and shelter["overflow_by"] == max(0, shelter["expected_demand"] - shelter["remaining_capacity"]) for shelter in data["shelters"])
+        severe_shelters = (await client.get("/api/v1/resources?flood_level_percent=100")).json()["shelters"]
+        assert sum(shelter["expected_demand"] for shelter in severe_shelters) > 0
 
         # Run optimization
         opt_resp = await client.post("/api/v1/assignments/optimize")
