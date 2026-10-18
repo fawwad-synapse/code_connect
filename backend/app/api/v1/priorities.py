@@ -184,6 +184,7 @@ async def get_priorities(
 @router.get("/priorities/{household_id}/explanation")
 async def get_priority_explanation(
     household_id: str,
+    flood_level_percent: Optional[float] = Query(None, ge=0, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -197,8 +198,9 @@ async def get_priority_explanation(
             h.housing_type, h.floor_level, h.has_smartphone, h.signal_quality,
             h.alert_acknowledged, h.missing_fields, z.elevation_m, z.deprivation_index,
             z.is_silent_zone,
-            COALESCE(hz.depth_m_forecast, 1.2) as depth_m_forecast,
-            COALESCE(hz.eta_hours, 3.0) as eta_hours,
+            h.water_proximity_m, h.report_evidence,
+            COALESCE(hz.depth_m_forecast, 1.0) as depth_m_forecast,
+            COALESCE(hz.eta_hours, 4.0) as eta_hours,
             COALESCE(hz.is_fallback, false) as is_fallback
         FROM households h
         JOIN zones z ON h.zone_id = z.id
@@ -216,6 +218,11 @@ async def get_priority_explanation(
         raise HTTPException(status_code=404, detail="Household priority record not found")
 
     missing = row[12].get("fields", []) if isinstance(row[12], dict) else []
+    depth = row[18]
+    if flood_level_percent is not None:
+        from app.services.scoring import _config
+        max_depth = _config.get("what_if", {}).get("flood_level_max_depth_m", 2.5)
+        depth = max_depth * flood_level_percent / 100.0
     score_res = calculate_priority_score(
         age=row[3],
         lives_alone=row[4],
@@ -227,12 +234,14 @@ async def get_priority_explanation(
         has_smartphone=row[9],
         signal_quality=row[10],
         alert_acknowledged=row[11],
-        forecast_depth_m=row[16],
+        forecast_depth_m=depth,
         elevation_m=row[13],
-        eta_hours=row[17],
+        eta_hours=row[19],
         is_silent_zone=row[15],
-        is_fallback_hazard=row[18],
+        is_fallback_hazard=row[20],
         missing_fields=missing,
+        water_proximity_m=row[16],
+        report_evidence=row[17],
     )
 
     context = {
@@ -241,8 +250,8 @@ async def get_priority_explanation(
         "mobility_impaired": row[5],
         "chronic_medical_need": row[6],
         "housing_type": row[7],
-        "forecast_depth_m": row[16],
-        "eta_hours": row[17],
+        "forecast_depth_m": depth,
+        "eta_hours": row[19],
     }
 
     explanation_text = await generate_explanation(score_res, context)

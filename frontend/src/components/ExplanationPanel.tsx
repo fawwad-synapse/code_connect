@@ -9,10 +9,12 @@ import { UI_COPY } from "@/lib/ui-copy";
 interface Props {
   item: PriorityItem | null;
   onClose: () => void;
+  floodLevelPercent?: number;
 }
 
-export function ExplanationPanel({ item, onClose }: Props) {
+export function ExplanationPanel({ item, onClose, floodLevelPercent }: Props) {
   const [explanation, setExplanation] = useState<string>("");
+  const [score, setScore] = useState<number | null>(null);
   const [loadingExpl, setLoadingExpl] = useState<boolean>(false);
 
   useEffect(() => {
@@ -21,12 +23,14 @@ export function ExplanationPanel({ item, onClose }: Props) {
     let isMounted = true;
     setLoadingExpl(true);
     setExplanation(item.summary_reason);
+    setScore(item.priority_score);
 
-    api.getExplanation(item.id)
+    api.getExplanation(item.id, floodLevelPercent)
       .then((data) => {
         if (isMounted && data.explanation) {
           setExplanation(data.explanation);
         }
+        if (isMounted && typeof data.priority_score === "number") setScore(data.priority_score);
       })
       .catch(() => {
         // Fallback to item.summary_reason already set
@@ -38,7 +42,7 @@ export function ExplanationPanel({ item, onClose }: Props) {
     return () => {
       isMounted = false;
     };
-  }, [item]);
+  }, [item, floodLevelPercent]);
 
   if (!item) return null;
 
@@ -66,7 +70,7 @@ export function ExplanationPanel({ item, onClose }: Props) {
         <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
           <div>
             <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold" title={UI_COPY.terms.helpPriorityHelp}>{UI_COPY.terms.helpPriority}</div>
-            <div className="text-3xl font-black text-rose-500 mt-0.5">{item.priority_score}<span className="text-sm text-slate-500"> / 100</span></div>
+            <div className="text-3xl font-black text-rose-500 mt-0.5">{score ?? item.priority_score}<span className="text-sm text-slate-500"> / 100</span></div>
             <div className="text-xs text-rose-400 mt-1 font-medium">{item.summary_reason}</div>
           </div>
           <div className="w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center">

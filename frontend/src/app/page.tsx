@@ -342,7 +342,7 @@ export default function OperationsCenterPage() {
       </div>
 
       {/* Slide-over Explainability Drawer */}
-      <ExplanationPanel item={selectedPriority} onClose={() => setSelectedPriority(null)} />
+      <ExplanationPanel item={selectedPriority} floodLevelPercent={floodLevel} onClose={() => setSelectedPriority(null)} />
     </main>
   );
 }

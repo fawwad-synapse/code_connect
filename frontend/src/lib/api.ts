@@ -146,8 +146,9 @@ export const api = {
     return res.json();
   },
 
-  async getExplanation(householdId: string) {
-    const res = await fetch(`${API_BASE}/api/v1/priorities/${householdId}/explanation`);
+  async getExplanation(householdId: string, floodLevelPercent?: number) {
+    const query = floodLevelPercent === undefined ? "" : `?flood_level_percent=${floodLevelPercent}`;
+    const res = await fetch(`${API_BASE}/api/v1/priorities/${householdId}/explanation${query}`);
     return res.json();
   },
 

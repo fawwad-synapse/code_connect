@@ -75,6 +75,26 @@ async def test_priorities_endpoint():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("flood_level", [None, 0, 50, 100])
+async def test_priority_explanation_matches_list_score_for_same_scenario(flood_level):
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        params = {"page_size": 200}
+        explanation_query = ""
+        if flood_level is not None:
+            params["flood_level_percent"] = flood_level
+            explanation_query = f"?flood_level_percent={flood_level}"
+        listing = await client.get("/api/v1/priorities", params=params)
+        assert listing.status_code == 200
+        household = listing.json()["items"][0]
+        explanation = await client.get(
+            f"/api/v1/priorities/{household['id']}/explanation{explanation_query}"
+        )
+        assert explanation.status_code == 200
+        assert explanation.json()["priority_score"] == household["priority_score"]
+
+
+@pytest.mark.asyncio
 async def test_flood_level_what_if_changes_priority_scores_without_mutating_forecast():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
