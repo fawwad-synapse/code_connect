@@ -15,6 +15,7 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { UI_COPY } from "@/lib/ui-copy";
 import { PageState } from "@/components/PageState";
+import { useAppStore } from "@/lib/store";
 
 interface ActionItem {
   time_window: string;
@@ -28,6 +29,7 @@ interface ActionItem {
 }
 
 export function Timeline() {
+  const activeHazard = useAppStore((state) => state.activeHazard);
   const [timeline, setTimeline] = useState<ActionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -37,7 +39,7 @@ export function Timeline() {
     try {
       setLoading(true);
       setLoadError(false);
-      const res = await api.getTimeline();
+      const res = await api.getTimeline(activeHazard);
       setTimeline(res.timeline || []);
     } catch (err: any) {
       console.error("Failed to load timeline:", err);
@@ -50,7 +52,9 @@ export function Timeline() {
 
   useEffect(() => {
     fetchTimeline();
-  }, []);
+  // Hazard selection is the only external refetch trigger.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeHazard]);
 
   const filteredItems = timeline.filter((item) => {
     if (activeTab === "ALL") return true;

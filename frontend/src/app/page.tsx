@@ -25,6 +25,7 @@ import { RiskBadge } from "@/components/RiskBadge";
 import { PageHeader } from "@/components/PageHeader";
 import { PageState } from "@/components/PageState";
 import { FirstVisitGuide } from "@/components/FirstVisitGuide";
+import { HAZARDS } from "@/lib/hazards";
 
 export default function OperationsCenterPage() {
   const [priorities, setPriorities] = useState<PriorityItem[]>([]);
@@ -41,17 +42,18 @@ export default function OperationsCenterPage() {
     shelterCount: 4,
   });
 
-  const { selectedPriority, setSelectedPriority, mapLayers, toggleLayer, setLatestPlan, setActiveFloodLevel } = useAppStore();
+  const { selectedPriority, setSelectedPriority, mapLayers, toggleLayer, setLatestPlan, setActiveFloodLevel, activeHazard } = useAppStore();
+  const hazardProfile = HAZARDS[activeHazard];
 
   const fetchDashboardData = useCallback(async (whatIfLevel: number | null) => {
     try {
       setLoading(true);
       setLoadError(false);
-      const baselineRes = await api.getPriorities({ page_size: 15 });
+      const baselineRes = await api.getPriorities({ page_size: 15, hazard: activeHazard });
       setBaselineScores(Object.fromEntries(baselineRes.items.map((item) => [item.id, item.priority_score])));
       const prioRes = whatIfLevel === null
         ? baselineRes
-        : await api.getPriorities({ page_size: 15, flood_level_percent: whatIfLevel });
+        : await api.getPriorities({ page_size: 15, hazard: activeHazard, ...(activeHazard === "flood" ? { flood_level_percent: whatIfLevel } : { heat_index_c: whatIfLevel }) });
       setPriorities(prioRes.items || []);
       setTotalCount(prioRes.total || 0);
 
@@ -67,10 +69,12 @@ export default function OperationsCenterPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeHazard]);
 
   useEffect(() => {
-    fetchDashboardData(50);
+    const defaultLevel = HAZARDS[activeHazard].sliderDefault;
+    setFloodLevel(defaultLevel);
+    fetchDashboardData(defaultLevel);
 
     // Setup live WebSocket connection for event broadcast
     const wsUrl =
@@ -88,7 +92,7 @@ export default function OperationsCenterPage() {
           if (eventType === "NEW_REPORT") {
             toast.info(`New incident reported: ${payload.data?.address || "Karachi"}`);
             fetchDashboardData(50);
-          } else if (eventType === "FLOOD_ALERT" && payload.data?.alerts_simulated) {
+          } else if (["FLOOD_ALERT", "HEAT_ALERT"].includes(eventType) && payload.data?.alerts_simulated) {
             toast.warning("Simulated alert (no real SMS sent)");
             fetchDashboardData(50);
           } else if (
@@ -111,14 +115,14 @@ export default function OperationsCenterPage() {
     return () => {
       if (socket) socket.close();
     };
-  }, [fetchDashboardData]);
+  }, [activeHazard, fetchDashboardData]);
 
   useEffect(() => {
     setActiveFloodLevel(floodLevel);
     setPlanUpdated(false);
     const timeout = window.setTimeout(async () => {
       try {
-        const plan = await api.optimizeAssignments(false, floodLevel);
+        const plan = await api.optimizeAssignments(false, floodLevel, activeHazard);
         setLatestPlan(plan);
         window.dispatchEvent(new CustomEvent("rescue-plan-updated", { detail: plan }));
         setPlanUpdated(true);
@@ -127,7 +131,7 @@ export default function OperationsCenterPage() {
       }
     }, 650);
     return () => window.clearTimeout(timeout);
-  }, [floodLevel, setLatestPlan, setActiveFloodLevel]);
+  }, [floodLevel, activeHazard, setLatestPlan, setActiveFloodLevel]);
 
   const handleScenarioFinished = () => {
     fetchDashboardData(floodLevel);
@@ -143,25 +147,25 @@ export default function OperationsCenterPage() {
       <section className="rounded-xl border border-cyan-900/70 bg-slate-900/90 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-sm font-bold text-white">{UI_COPY.home.floodPreview}</h2>
-            <p className="text-xs text-slate-400">{UI_COPY.home.floodPreviewHelp}</p>
+            <h2 className="text-sm font-bold text-white">What-if {hazardProfile.sliderLabel.toLowerCase()}</h2>
+            <p className="text-xs text-slate-400">Changes the live ranking and response plan without changing stored forecasts.</p>
           </div>
-          <label htmlFor="flood-level" className="text-sm font-bold text-cyan-300">{floodLevel}%</label>
+          <label htmlFor="flood-level" className={`text-sm font-bold ${activeHazard === "heatwave" ? "text-orange-300" : "text-cyan-300"}`}>{floodLevel}{hazardProfile.unit}</label>
         </div>
         <input
           id="flood-level"
           type="range"
-          min={0}
-          max={100}
-          step={1}
+          min={hazardProfile.sliderMin}
+          max={hazardProfile.sliderMax}
+          step={hazardProfile.sliderStep}
           value={floodLevel}
           onChange={(event) => {
             const value = Number(event.target.value);
             setFloodLevel(value);
             void fetchDashboardData(value);
           }}
-          className="mt-3 w-full accent-cyan-400"
-          aria-label="Flood level percentage"
+          className={`mt-3 w-full ${activeHazard === "heatwave" ? "accent-orange-400" : "accent-cyan-400"}`}
+          aria-label={`${hazardProfile.sliderLabel} ${hazardProfile.unit}`}
         />
         <div aria-live="polite" className="mt-1 min-h-5 text-xs text-emerald-300">{planUpdated ? "Plan updated" : "Updating plan…"}</div>
         <div className="mt-3 grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-5">

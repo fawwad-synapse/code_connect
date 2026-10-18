@@ -1,7 +1,10 @@
 import { create } from "zustand";
 import { PriorityItem } from "./api";
+import { Hazard } from "./hazards";
 
 interface AppState {
+  activeHazard: Hazard;
+  setActiveHazard: (hazard: Hazard) => void;
   selectedPriority: PriorityItem | null;
   setSelectedPriority: (item: PriorityItem | null) => void;
 
@@ -36,6 +39,8 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set) => ({
+  activeHazard: "flood",
+  setActiveHazard: (activeHazard) => set({ activeHazard }),
   selectedPriority: null,
   setSelectedPriority: (item) => set({ selectedPriority: item }),
 

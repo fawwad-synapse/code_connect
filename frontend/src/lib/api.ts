@@ -1,3 +1,5 @@
+import { Hazard } from "./hazards";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export interface ZoneItem {
@@ -11,6 +13,7 @@ export interface ZoneItem {
   hazard_forecast: {
     hazard_type: string;
     depth_m_forecast: number;
+    heat_index_c?: number | null;
     eta_hours: number;
     is_fallback: boolean;
   };
@@ -62,6 +65,7 @@ export interface PriorityItem {
   factor_breakdown: FactorBreakdown[];
   summary_reason: string;
   depth_m_forecast: number;
+  heat_index_c?: number | null;
   eta_hours: number;
 }
 
@@ -116,8 +120,8 @@ export const api = {
     return res.json();
   },
 
-  async getZones(): Promise<{ zones: ZoneItem[]; count: number }> {
-    const res = await fetch(`${API_BASE}/api/v1/zones`);
+  async getZones(hazard: Hazard = "flood"): Promise<{ zones: ZoneItem[]; count: number }> {
+    const res = await fetch(`${API_BASE}/api/v1/zones?hazard=${hazard}`);
     return res.json();
   },
 
@@ -135,6 +139,8 @@ export const api = {
     page?: number;
     page_size?: number;
     flood_level_percent?: number;
+    heat_index_c?: number;
+    hazard?: Hazard;
   }): Promise<{ total: number; page: number; page_size: number; items: PriorityItem[] }> {
     const q = new URLSearchParams();
     if (params?.zone_id) q.set("zone_id", params.zone_id);
@@ -145,34 +151,38 @@ export const api = {
     if (params?.page) q.set("page", params.page.toString());
     if (params?.page_size) q.set("page_size", params.page_size.toString());
     if (params?.flood_level_percent !== undefined) q.set("flood_level_percent", params.flood_level_percent.toString());
+    if (params?.heat_index_c !== undefined) q.set("heat_index_c", params.heat_index_c.toString());
+    if (params?.hazard) q.set("hazard", params.hazard);
 
     const res = await fetch(`${API_BASE}/api/v1/priorities?${q.toString()}`);
     return res.json();
   },
 
-  async getExplanation(householdId: string, floodLevelPercent?: number) {
-    const query = floodLevelPercent === undefined ? "" : `?flood_level_percent=${floodLevelPercent}`;
-    const res = await fetch(`${API_BASE}/api/v1/priorities/${householdId}/explanation${query}`);
+  async getExplanation(householdId: string, scenarioLevel?: number, hazard: Hazard = "flood") {
+    const params = new URLSearchParams({ hazard });
+    if (scenarioLevel !== undefined) params.set(hazard === "flood" ? "flood_level_percent" : "heat_index_c", String(scenarioLevel));
+    const res = await fetch(`${API_BASE}/api/v1/priorities/${householdId}/explanation?${params}`);
     return res.json();
   },
 
-  async getResources(floodLevelPercent?: number): Promise<{ resources: ResourceItem[]; shelters: ShelterItem[]; blocked_roads: BlockedRoadItem[] }> {
-    const query = floodLevelPercent === undefined ? "" : `?flood_level_percent=${floodLevelPercent}`;
-    const res = await fetch(`${API_BASE}/api/v1/resources${query}`);
+  async getResources(scenarioLevel?: number, hazard: Hazard = "flood"): Promise<{ resources: ResourceItem[]; shelters: ShelterItem[]; blocked_roads: BlockedRoadItem[] }> {
+    const params = new URLSearchParams({ hazard });
+    if (scenarioLevel !== undefined) params.set(hazard === "flood" ? "flood_level_percent" : "heat_index_c", String(scenarioLevel));
+    const res = await fetch(`${API_BASE}/api/v1/resources?${params}`);
     return res.json();
   },
 
-  async optimizeAssignments(useFallback = false, floodLevelPercent?: number) {
-    const params = new URLSearchParams({ use_fallback_solver: String(useFallback) });
-    if (floodLevelPercent !== undefined) params.set("flood_level_percent", String(floodLevelPercent));
+  async optimizeAssignments(useFallback = false, scenarioLevel?: number, hazard: Hazard = "flood") {
+    const params = new URLSearchParams({ use_fallback_solver: String(useFallback), hazard });
+    if (scenarioLevel !== undefined) params.set(hazard === "flood" ? "flood_level_percent" : "heat_index_c", String(scenarioLevel));
     const res = await fetch(`${API_BASE}/api/v1/assignments/optimize?${params.toString()}`, {
       method: "POST",
     });
     return res.json();
   },
 
-  async getAssignments(): Promise<{ assignments: AssignmentMapItem[]; assigned_count: number }> {
-    const res = await fetch(`${API_BASE}/api/v1/assignments`);
+  async getAssignments(hazard: Hazard = "flood"): Promise<{ assignments: AssignmentMapItem[]; assigned_count: number }> {
+    const res = await fetch(`${API_BASE}/api/v1/assignments?hazard=${hazard}`);
     return res.json();
   },
 
@@ -185,17 +195,17 @@ export const api = {
     return res.json();
   },
 
-  async getReports(limit = 50) {
-    const res = await fetch(`${API_BASE}/api/v1/reports?limit=${limit}`);
+  async getReports(limit = 50, hazard: Hazard = "flood") {
+    const res = await fetch(`${API_BASE}/api/v1/reports?limit=${limit}&hazard=${hazard}`);
     return res.json();
   },
 
-  async submitReport(payload: { source: string; raw_text: string; lng?: number; lat?: number; photo_url?: string }, idempotencyKey?: string) {
+  async submitReport(payload: { source: string; raw_text: string; lng?: number; lat?: number; photo_url?: string }, idempotencyKey?: string, hazard: Hazard = "flood") {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (idempotencyKey) {
       headers["X-Idempotency-Key"] = idempotencyKey;
     }
-    const res = await fetch(`${API_BASE}/api/v1/reports`, {
+    const res = await fetch(`${API_BASE}/api/v1/reports?hazard=${hazard}`, {
       method: "POST",
       headers,
       body: JSON.stringify(payload),
@@ -206,13 +216,13 @@ export const api = {
     return res.json();
   },
 
-  async getTimeline() {
-    const res = await fetch(`${API_BASE}/api/v1/prepositioning/timeline`);
+  async getTimeline(hazard: Hazard = "flood") {
+    const res = await fetch(`${API_BASE}/api/v1/prepositioning/timeline?hazard=${hazard}`);
     return res.json();
   },
 
-  async runScenario(scenario: string) {
-    const res = await fetch(`${API_BASE}/api/v1/simulate/${scenario}`, {
+  async runScenario(scenario: string, hazard: Hazard = "flood") {
+    const res = await fetch(`${API_BASE}/api/v1/simulate/${scenario}?hazard=${hazard}`, {
       method: "POST",
     });
     return res.json();

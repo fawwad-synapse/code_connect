@@ -46,7 +46,7 @@ export function MapClient({
   onSelectPriority,
   floodLevelPercent,
 }: Props) {
-  const { mapLayers, setSelectedPriority } = useAppStore();
+  const { mapLayers, setSelectedPriority, activeHazard } = useAppStore();
   const [internalZones, setInternalZones] = useState<ZoneItem[]>([]);
   const [internalPriorities, setInternalPriorities] = useState<PriorityItem[]>([]);
   const [priorityTotal, setPriorityTotal] = useState(0);
@@ -59,30 +59,31 @@ export function MapClient({
 
   useEffect(() => {
     if (!propZones || propZones.length === 0) {
-      api.getZones().then((res) => setInternalZones(res.zones || [])).catch(() => setMapLoadError(true));
+      api.getZones(activeHazard).then((res) => setInternalZones(res.zones || [])).catch(() => setMapLoadError(true));
     }
     if (!propPriorities || propPriorities.length === 0) {
-      api.getPriorities({ page_size: 150, flood_level_percent: floodLevelPercent }).then((res) => {
+      api.getPriorities({ page_size: 150, hazard: activeHazard, ...(activeHazard === "flood" ? { flood_level_percent: floodLevelPercent } : { heat_index_c: floodLevelPercent }) }).then((res) => {
         setInternalPriorities(res.items || []);
         setPriorityTotal(res.total || 0);
       }).catch(() => setMapLoadError(true));
     }
     if (!propResources || propResources.length === 0) {
-      api.getResources().then((res) => {
+      api.getResources(floodLevelPercent, activeHazard).then((res) => {
         setInternalResources(res.resources || []);
         setInternalShelters(res.shelters || []);
         setInternalBlockedRoads(res.blocked_roads || []);
       }).catch(() => setMapLoadError(true));
     }
-    api.getWaterways().then((res) => setWaterways(res.waterways || [])).catch(() => setMapLoadError(true));
-    api.getAssignments().then((res) => setAssignments(res.assignments || [])).catch(() => setMapLoadError(true));
-  }, [propZones, propPriorities, propResources, floodLevelPercent]);
+    if (activeHazard === "flood") api.getWaterways().then((res) => setWaterways(res.waterways || [])).catch(() => setMapLoadError(true));
+    else setWaterways([]);
+    api.getAssignments(activeHazard).then((res) => setAssignments(res.assignments || [])).catch(() => setMapLoadError(true));
+  }, [propZones, propPriorities, propResources, floodLevelPercent, activeHazard]);
 
   useEffect(() => {
-    const refresh = () => api.getAssignments().then((res) => setAssignments(res.assignments || []));
+    const refresh = () => api.getAssignments(activeHazard).then((res) => setAssignments(res.assignments || []));
     window.addEventListener("rescue-plan-updated", refresh);
     return () => window.removeEventListener("rescue-plan-updated", refresh);
-  }, []);
+  }, [activeHazard]);
 
   const zones = propZones && propZones.length > 0 ? propZones : internalZones;
   const priorities = propPriorities && propPriorities.length > 0 ? propPriorities : internalPriorities;

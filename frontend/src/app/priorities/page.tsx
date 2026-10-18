@@ -19,13 +19,13 @@ export default function PrioritiesPage() {
   const [page, setPage] = useState<number>(1);
   const pageSize = 50;
 
-  const { selectedPriority, setSelectedPriority } = useAppStore();
+  const { selectedPriority, setSelectedPriority, activeHazard } = useAppStore();
 
   const fetchPriorities = useCallback(async () => {
     try {
       setLoading(true);
       setLoadError(false);
-      const res = await api.getPriorities({ page, page_size: pageSize });
+      const res = await api.getPriorities({ page, page_size: pageSize, hazard: activeHazard });
       setPriorities(res.items || []);
       setTotalCount(res.total || 0);
     } catch (err: any) {
@@ -35,7 +35,7 @@ export default function PrioritiesPage() {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, activeHazard]);
 
   useEffect(() => {
     fetchPriorities();

@@ -65,6 +65,7 @@ export function ResourceBoard() {
   const latestPlan = useAppStore((state) => state.latestPlan);
   const activeFloodLevel = useAppStore((state) => state.activeFloodLevel);
   const setLatestPlan = useAppStore((state) => state.setLatestPlan);
+  const activeHazard = useAppStore((state) => state.activeHazard);
   const [resources, setResources] = useState<ResourceItem[]>([]);
   const [shelters, setShelters] = useState<ShelterItem[]>([]);
   const [assignments, setAssignments] = useState<AssignmentResult[]>([]);
@@ -89,7 +90,7 @@ export function ResourceBoard() {
     try {
       setLoading(true);
       setLoadError(false);
-      const res = await api.getResources(activeFloodLevel);
+      const res = await api.getResources(activeFloodLevel, activeHazard);
       setResources(res.resources || []);
       setShelters(res.shelters || []);
     } catch (err) {
@@ -99,7 +100,7 @@ export function ResourceBoard() {
     } finally {
       setLoading(false);
     }
-  }, [activeFloodLevel]);
+  }, [activeFloodLevel, activeHazard]);
 
   useEffect(() => {
     fetchData();
@@ -119,7 +120,7 @@ export function ResourceBoard() {
     try {
       setOptimizing(true);
       setOptimizationError(false);
-      const result = await api.optimizeAssignments(useFallback, activeFloodLevel);
+      const result = await api.optimizeAssignments(useFallback, activeFloodLevel, activeHazard);
       setAssignments(result.assignments || []);
       setConflicts(result.conflicts || []);
       setUnassignedTargets(result.unassigned_targets || []);

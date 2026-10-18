@@ -5,6 +5,7 @@ import { X, ShieldAlert, BarChart3, HelpCircle, Activity, HeartPulse, Home, Radi
 import { PriorityItem, api } from "@/lib/api";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { UI_COPY } from "@/lib/ui-copy";
+import { useAppStore } from "@/lib/store";
 
 interface Props {
   item: PriorityItem | null;
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function ExplanationPanel({ item, onClose, floodLevelPercent }: Props) {
+  const activeHazard = useAppStore((state) => state.activeHazard);
   const [explanation, setExplanation] = useState<string>("");
   const [score, setScore] = useState<number | null>(null);
   const [loadingExpl, setLoadingExpl] = useState<boolean>(false);
@@ -25,7 +27,7 @@ export function ExplanationPanel({ item, onClose, floodLevelPercent }: Props) {
     setExplanation(item.summary_reason);
     setScore(item.priority_score);
 
-    api.getExplanation(item.id, floodLevelPercent)
+    api.getExplanation(item.id, floodLevelPercent, activeHazard)
       .then((data) => {
         if (isMounted && data.explanation) {
           setExplanation(data.explanation);
@@ -42,7 +44,7 @@ export function ExplanationPanel({ item, onClose, floodLevelPercent }: Props) {
     return () => {
       isMounted = false;
     };
-  }, [item, floodLevelPercent]);
+  }, [item, floodLevelPercent, activeHazard]);
 
   if (!item) return null;
 

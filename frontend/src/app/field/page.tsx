@@ -42,7 +42,7 @@ export default function FieldPwaPage() {
   const [submitting, setSubmitting] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
-  const { setOfflineQueueCount } = useAppStore();
+  const { setOfflineQueueCount, activeHazard } = useAppStore();
 
   const loadQueue = useCallback(async () => {
     try {
@@ -138,6 +138,7 @@ export default function FieldPwaPage() {
       const reportPayload = {
         source: "FIELD_PWA",
         raw_text: rawText,
+        hazard: activeHazard,
         lat: lat || 24.8607,
         lng: lng || 67.0011,
       };

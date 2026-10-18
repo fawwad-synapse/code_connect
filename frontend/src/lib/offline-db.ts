@@ -1,5 +1,6 @@
 import { openDB, DBSchema, IDBPDatabase } from "idb";
 import { api } from "./api";
+import { Hazard } from "./hazards";
 
 interface QueuedReport {
   idempotency_key: string;
@@ -10,6 +11,7 @@ interface QueuedReport {
   photo_url?: string;
   queued_at: string;
   synced: boolean;
+  hazard?: Hazard;
 }
 
 interface RescueRankDB extends DBSchema {
@@ -49,6 +51,7 @@ export async function queueOfflineReport(report: {
   lng?: number;
   lat?: number;
   photo_url?: string;
+  hazard?: Hazard;
 }): Promise<QueuedReport> {
   const db = await getDB();
   const idempotency_key = typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -97,7 +100,8 @@ async function performOfflineReportSync(): Promise<{ syncedCount: number; errors
             lat: report.lat,
             photo_url: report.photo_url,
           },
-          report.idempotency_key
+          report.idempotency_key,
+          report.hazard || "flood"
         );
 
         // Mark as synced or remove from queue

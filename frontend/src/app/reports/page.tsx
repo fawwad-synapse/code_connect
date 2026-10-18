@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { UI_COPY } from "@/lib/ui-copy";
 import { PageHeader } from "@/components/PageHeader";
 import { PageState } from "@/components/PageState";
+import { useAppStore } from "@/lib/store";
 
 interface ReportItem {
   id: string;
@@ -38,6 +39,7 @@ interface ReportItem {
 }
 
 export default function ReportsPage() {
+  const activeHazard = useAppStore((state) => state.activeHazard);
   const [reports, setReports] = useState<ReportItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -74,7 +76,7 @@ export default function ReportsPage() {
     try {
       setLoading(true);
       setLoadError(false);
-      const res = await api.getReports(50);
+      const res = await api.getReports(50, activeHazard);
       setReports(res.reports || []);
     } catch (err: any) {
       setLoadError(true);
@@ -87,7 +89,9 @@ export default function ReportsPage() {
 
   useEffect(() => {
     fetchReports();
-  }, []);
+  // fetchReports is intentionally local; hazard selection is the refetch trigger.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeHazard]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,7 +109,8 @@ export default function ReportsPage() {
           lat: parseFloat(lat) || undefined,
           lng: parseFloat(lng) || undefined,
         },
-        idempotencyKey
+        idempotencyKey,
+        activeHazard
       );
       setSubmitSuccess(true);
 

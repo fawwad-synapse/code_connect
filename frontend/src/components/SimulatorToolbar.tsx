@@ -13,14 +13,14 @@ interface Props {
 
 export function SimulatorToolbar({ onScenarioRun }: Props) {
   const [running, setRunning] = useState<string | null>(null);
-  const { setActiveScenario } = useAppStore();
+  const { setActiveScenario, activeHazard } = useAppStore();
 
   const handleRun = async (scenario: string, label: string) => {
     try {
       setRunning(scenario);
       setActiveScenario(scenario);
       toast.info(`Executing demo trigger: ${label}...`);
-      const res = await api.runScenario(scenario);
+      const res = await api.runScenario(scenario, activeHazard);
       const successMessage = res.simulated
         ? "Simulated scenario: resource conflict example"
         : res.alerts_simulated
