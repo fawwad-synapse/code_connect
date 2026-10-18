@@ -7,6 +7,7 @@ export const UI_COPY = {
     preparation: "Prepare teams",
     reports: "Emergency reports",
     field: "Field report",
+    menu: "Open navigation menu",
   },
   pages: {
     homeTitle: "Response overview",
@@ -191,6 +192,25 @@ export const UI_COPY = {
     blockedRoad: "Blocked road",
     householdPins: "Household pins",
     showingPins: (shown: number, total: number) => `Showing ${shown} of ${total} household pins by help priority`,
+  },
+  onboarding: {
+    introTitle: "What is RescueRank?",
+    intro: "RescueRank helps coordinators decide which households may need help first, then review available rescue teams. Example records are synthetic, so this is a demonstration—not a live emergency service.",
+    startTour: "Take the 1-minute tour",
+    goToOverview: "Go to response overview",
+    tourTitle: "RescueRank quick tour",
+    steps: [
+      { title: "Start with the people list", body: "The response overview highlights households to review first. A higher help priority is a sorting aid, not an automatic rescue decision.", href: "/", action: "View response overview" },
+      { title: "Check why a household is listed", body: "Open People needing help to review the reason, support needs, and how complete the information is.", href: "/priorities", action: "Open people list" },
+      { title: "Read the map", body: "The map separates forecast water depth from household help priority. Areas with few reports may have missing information; they are not automatically safe.", href: "/", action: "View map" },
+      { title: "Review rescue teams", body: "Ask the system to recommend team assignments, then review the results. Recommendations are not proof that a team has physically departed.", href: "/resources", action: "Review teams" },
+      { title: "Send a report", body: "Use the report form or field form to share new information. Offline reports stay on this device until they are sent.", href: "/field", action: "Open field report" },
+    ],
+    previous: "Previous step",
+    next: "Next step",
+    finish: "Finish tour",
+    close: "Close tour",
+    stepCount: (current: number, total: number) => `Step ${current} of ${total}`,
   },
 } as const;
 

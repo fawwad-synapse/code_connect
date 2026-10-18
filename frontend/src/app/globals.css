@@ -43,6 +43,45 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
+    font-size: 16px;
+  }
+  :where(button, a, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 3px solid #67e8f9;
+    outline-offset: 2px;
+  }
+  :where(button, input, select, textarea) {
+    font: inherit;
+  }
+  :where(button:not(:disabled), summary) {
+    min-height: 44px;
+  }
+  :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  :where(input[type="checkbox"], input[type="radio"]) {
+    width: 20px;
+    height: 20px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      scroll-behavior: auto !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .ui-card {
+    @apply rounded-xl border border-slate-700 bg-slate-900 p-4 sm:p-5;
+  }
+  .ui-button-primary {
+    @apply inline-flex min-h-11 items-center justify-center rounded-lg border border-blue-400 bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .ui-button-secondary {
+    @apply inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-500 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50;
   }
 }
 

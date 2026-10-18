@@ -24,6 +24,7 @@ import { UI_COPY } from "@/lib/ui-copy";
 import { RiskBadge } from "@/components/RiskBadge";
 import { PageHeader } from "@/components/PageHeader";
 import { PageState } from "@/components/PageState";
+import { FirstVisitGuide } from "@/components/FirstVisitGuide";
 
 export default function OperationsCenterPage() {
   const [priorities, setPriorities] = useState<PriorityItem[]>([]);
@@ -114,6 +115,7 @@ export default function OperationsCenterPage() {
 
   return (
     <main className="flex-1 max-w-[1720px] w-full mx-auto p-4 md:p-6 space-y-5">
+      <FirstVisitGuide />
       <PageHeader title={UI_COPY.pages.homeTitle} description={UI_COPY.pages.homeDescription} icon={<ShieldAlert className="h-6 w-6" />} />
       {/* Simulator Toolbar for Live Demo */}
       <SimulatorToolbar onScenarioRun={handleScenarioFinished} />

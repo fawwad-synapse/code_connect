@@ -107,10 +107,12 @@ export function PriorityList({ priorities, onSelectPriority, selectedId }: Props
           filtered.map((item, index) => {
             const isSelected = item.id === selectedId;
             return (
-              <div
+              <button
+                type="button"
                 key={item.id}
                 onClick={() => onSelectPriority(item)}
-                className={`p-3 rounded-lg cursor-pointer transition flex items-center justify-between gap-3 ${
+                aria-pressed={isSelected}
+                className={`w-full text-left p-3 rounded-lg cursor-pointer transition flex items-center justify-between gap-3 ${
                   isSelected
                     ? "bg-blue-600/15 border border-blue-500/40"
                     : "hover:bg-slate-800/60"
@@ -161,7 +163,7 @@ export function PriorityList({ priorities, onSelectPriority, selectedId }: Props
                 <div className="flex items-center text-slate-500">
                   <ChevronRight className="w-4 h-4" />
                 </div>
-              </div>
+              </button>
             );
           })
         )}
