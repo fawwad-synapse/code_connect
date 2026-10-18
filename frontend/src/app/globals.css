@@ -101,13 +101,16 @@
   background: hsl(var(--accent));
 }
 
-/* Leaflet dark theme tweaks */
-.leaflet-container {
+/* Leaflet dark theme tweaks - apply only when inside dark mode container */
+.dark-map .leaflet-container {
   background-color: #0f172a !important;
   font-family: inherit !important;
 }
-.leaflet-tile {
+.dark-map .leaflet-tile {
   filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7) !important;
+}
+.leaflet-container {
+  font-family: inherit !important;
 }
 .leaflet-popup-content-wrapper, .leaflet-popup-tip {
   background-color: hsl(var(--card)) !important;

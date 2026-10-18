@@ -56,6 +56,7 @@ export function MapClient({
   const [waterways, setWaterways] = useState<WaterwayItem[]>([]);
   const [assignments, setAssignments] = useState<AssignmentMapItem[]>([]);
   const [mapLoadError, setMapLoadError] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(false);
 
   useEffect(() => {
     if (!propZones || propZones.length === 0) {
@@ -325,43 +326,51 @@ export function MapClient({
 
       {mapLoadError && <div className="absolute left-1/2 top-3 z-[1000] w-[min(90%,28rem)] -translate-x-1/2"><PageState kind="error" title={UI_COPY.status.mapError} message={UI_COPY.status.mapPartialError} /></div>}
 
-      {/* Floating Map Legend & Layer Toggles */}
-      <div className="absolute bottom-4 left-4 z-[1000] bg-slate-900/90 backdrop-blur border border-slate-800 rounded-lg p-2.5 text-xs text-slate-300 space-y-1.5 shadow-xl">
-        <div className="font-bold text-white text-sm">{UI_COPY.map.legendTitle}</div>
-        <p className="max-w-56 text-[11px] leading-snug text-slate-200">{UI_COPY.map.pinHelp}</p>
-        {displayedTotal > visiblePriorities.length && (
-          <div className="rounded bg-amber-500/10 px-1.5 py-1 text-[10px] font-semibold text-amber-200 border border-amber-500/30">
-            {UI_COPY.map.showingPins(visiblePriorities.length, displayedTotal)}
+      {/* Floating Map Legend & Layer Toggles (Collapsed by default with arrow toggle) */}
+      <div className="absolute bottom-4 left-4 z-[1000] bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-xl p-3 text-xs text-slate-700 shadow-xl transition-all max-w-[280px]">
+        <button
+          type="button"
+          onClick={() => setLegendOpen(!legendOpen)}
+          className="w-full flex items-center justify-between gap-2 font-bold text-slate-900 text-xs hover:text-blue-600 transition"
+        >
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-blue-600" />
+            {UI_COPY.map.legendTitle}
+          </span>
+          <span className={`transform transition-transform text-slate-400 font-bold ${legendOpen ? "rotate-180" : "rotate-0"}`}>
+            ▼
+          </span>
+        </button>
+
+        {legendOpen && (
+          <div className="space-y-1.5 pt-2 border-t border-slate-100 mt-2 text-[11px] animate-in fade-in duration-200">
+            <p className="text-[10px] leading-snug text-slate-500">{UI_COPY.map.pinHelp}</p>
+            {displayedTotal > visiblePriorities.length && (
+              <div className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 border border-amber-200">
+                {UI_COPY.map.showingPins(visiblePriorities.length, displayedTotal)}
+              </div>
+            )}
+            <div className="pt-1 font-semibold text-slate-800">{mapWords.risk} — Household Priority</div>
+            <div className="flex items-center justify-between gap-2"><RiskBadge score={70} compact /><span>70+</span></div>
+            <div className="flex items-center justify-between gap-2"><RiskBadge score={45} compact /><span>45-69</span></div>
+            <div className="flex items-center justify-between gap-2"><RiskBadge score={25} compact /><span>25-44</span></div>
+            <div className="flex items-center justify-between gap-2"><RiskBadge score={24} compact /><span>0-24</span></div>
+            <div className="border-t border-slate-100 pt-1 font-semibold text-slate-800">{mapWords.forecast}</div>
+            {isHeatwave ? <>
+              <div className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded bg-red-600" />Extreme heat (48°C+)</div>
+              <div className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded bg-orange-600" />High heat (42–47°C)</div>
+              <div className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded bg-yellow-500" />Moderate heat</div>
+            </> : <>
+              <div className="flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rounded bg-red-600" />{UI_COPY.map.deepWater}</div>
+              <div className="flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rounded bg-orange-600" />{UI_COPY.map.risingWater}</div>
+              <div className="flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rounded bg-blue-600" />{UI_COPY.map.lowerWater}</div>
+            </>}
+            <div className="flex items-center gap-1.5 pt-0.5">
+              <CircleHelp aria-hidden="true" className="h-3 w-3 text-purple-600" />
+              <span className="text-[10px] text-purple-700">{UI_COPY.map.fewReports}</span>
+            </div>
           </div>
         )}
-        <div className="border-t border-slate-700 pt-1 text-[11px] font-semibold text-white">{mapWords.risk} — household priority</div>
-        <div className="flex items-center justify-between gap-2"><RiskBadge score={70} compact /><span>70+</span></div>
-        <div className="flex items-center justify-between gap-2"><RiskBadge score={45} compact /><span>45-69</span></div>
-        <div className="flex items-center justify-between gap-2"><RiskBadge score={25} compact /><span>25-44</span></div>
-        <div className="flex items-center justify-between gap-2"><RiskBadge score={24} compact /><span>0-24</span></div>
-        <div className="border-t border-slate-700 pt-1 text-[11px] font-semibold text-white">{mapWords.forecast}</div>
-        {isHeatwave ? <>
-          <div className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-red-600" />Extreme heat (48°C+)</div>
-          <div className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-orange-600" />High heat (42–47°C)</div>
-          <div className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-yellow-500" />Moderate heat</div>
-        </> : <>
-          <div className="flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-3 rounded bg-red-600" />{UI_COPY.map.deepWater}</div>
-          <div className="flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-3 rounded bg-orange-600" />{UI_COPY.map.risingWater}</div>
-          <div className="flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-3 rounded bg-blue-600" />{UI_COPY.map.lowerWater}</div>
-        </>}
-        <div className="flex items-center gap-1.5">
-          <CircleHelp aria-hidden="true" className="h-3.5 w-3.5 text-purple-300" />
-          <span>{UI_COPY.map.fewReports}</span>
-        </div>
-        {!isHeatwave && <div className="flex items-center gap-1.5 pt-1 border-t border-slate-800">
-          <span className="w-3 h-0.5 border-t-2 border-dashed border-rose-500"></span>
-          <span>{isHeatwave ? "Cooling/response units" : UI_COPY.map.blockedRoad}</span>
-          <span className="rounded border border-amber-500/40 bg-amber-500/10 px-1 text-[9px] font-bold text-amber-300">SIMULATED</span>
-        </div>}
-        <div className="flex items-center gap-1.5">
-          <span>{UI_COPY.map.householdPins}</span>
-          <span className="rounded border border-amber-500/40 bg-amber-500/10 px-1 text-[9px] font-bold text-amber-300">SYNTHETIC</span>
-        </div>
       </div>
     </div>
   );

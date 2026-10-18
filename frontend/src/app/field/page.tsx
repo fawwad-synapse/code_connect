@@ -20,7 +20,6 @@ import { queueOfflineReport, getPendingOfflineReports, syncOfflineReports } from
 import { useAppStore } from "@/lib/store";
 import { toast } from "sonner";
 import { UI_COPY } from "@/lib/ui-copy";
-import { PageHeader } from "@/components/PageHeader";
 import { PageState } from "@/components/PageState";
 
 export default function FieldPwaPage() {
@@ -168,206 +167,220 @@ export default function FieldPwaPage() {
   };
 
   return (
-    <main className="flex-1 max-w-2xl w-full mx-auto p-4 md:p-6 space-y-5">
-      <PageHeader
-        title={UI_COPY.pages.fieldTitle}
-        description={UI_COPY.pages.fieldDescription}
-        icon={<CloudLightning className="h-6 w-6" />}
-        actions={isOnline ? (
-          <span className="min-h-11 inline-flex items-center gap-2 rounded-full border border-emerald-700 bg-emerald-950 px-4 text-sm font-semibold text-emerald-200">
-            <Wifi aria-hidden="true" className="h-4 w-4" /> {UI_COPY.status.online}
-          </span>
-        ) : (
-          <span className="min-h-11 inline-flex items-center gap-2 rounded-full border border-amber-700 bg-amber-950 px-4 text-sm font-semibold text-amber-100">
-            <WifiOff aria-hidden="true" className="h-4 w-4" /> {UI_COPY.status.offline}
-          </span>
-        )}
-      />
-
-      {!isOnline && <PageState kind="offline" title={UI_COPY.status.offlineSaved} message={UI_COPY.status.connectionLost} />}
-
-      {/* Sync Banner if pending items */}
-      {pendingQueue.length > 0 && (
-        <div className="bg-amber-950/30 border border-amber-900/50 p-4 rounded-xl flex items-center justify-between text-xs text-amber-200">
-          <div className="flex items-center gap-2">
-            <CloudOff className="w-4 h-4 text-amber-400" />
-            <span>
-              <strong>{pendingQueue.length}</strong> {UI_COPY.status.pendingReports}
-            </span>
+    <div className="flex-1 bg-[#f4f7fb] text-slate-800 p-4 lg:p-6">
+      <main className="max-w-2xl w-full mx-auto space-y-4">
+        {/* Header matching modern light UI card system */}
+        <header className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold shadow-sm">
+              <CloudLightning className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-slate-900 leading-tight">Send a Field Report</h1>
+              <p className="text-xs text-slate-400 mt-0.5">Record who needs help and where. Works offline.</p>
+            </div>
           </div>
 
-          <button
-            onClick={handleSync}
-            disabled={syncing || !isOnline}
-            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold rounded-lg flex items-center gap-1.5 transition shadow"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
-            {syncing ? UI_COPY.status.syncing : UI_COPY.status.syncNow}
-          </button>
-        </div>
-      )}
-
-      {/* Field Intake Form */}
-      <form onSubmit={handleSubmit} className="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-5">
-        <div className="border-b border-slate-800 pb-3 flex items-center justify-between">
-          <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-            <ShieldAlert className="w-4 h-4 text-rose-500" />
-            Vulnerability & Distress Assessment
-          </h2>
-            <span className="text-[11px] text-slate-500">Works offline</span>
-        </div>
-
-        {/* Location & GPS */}
-        <div className="space-y-2">
-          <label className="block text-xs font-semibold text-slate-300">
-            {UI_COPY.field.location} <span className="text-rose-400">*</span>
-          </label>
-          <input
-            type="text"
-            required
-            value={locationName}
-            onChange={(e) => setLocationName(e.target.value)}
-            placeholder="e.g. Sector 5-E, Korangi Creek Road near Masjid Bilal"
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-          />
-
-          <div className="flex items-center gap-3 pt-1">
-            <button
-              type="button"
-              onClick={handleGetLocation}
-              disabled={gettingLocation}
-              className="px-3 py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5 border border-slate-700 transition"
-            >
-              <LocateFixed className={`w-3.5 h-3.5 text-blue-400 ${gettingLocation ? "animate-spin" : ""}`} />
-              {lat && lng ? `Location: ${lat}, ${lng}` : UI_COPY.actions.captureLocation}
-            </button>
-            {lat && lng && (
-              <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
-                <CheckCircle className="w-3.5 h-3.5" />
-                {UI_COPY.field.locationSaved}
+          <div>
+            {isOnline ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 shadow-sm">
+                <Wifi aria-hidden="true" className="h-3.5 w-3.5 text-emerald-600" /> Online
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700 shadow-sm">
+                <WifiOff aria-hidden="true" className="h-3.5 w-3.5 text-amber-600" /> Offline
               </span>
             )}
           </div>
-        </div>
+        </header>
 
-        {/* Demographics & Household Vulnerabilities */}
-        <div className="grid grid-cols-2 gap-3 pt-2">
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">{UI_COPY.field.peopleCount}</label>
-            <input
-              type="number"
-              min={1}
-              value={occupants}
-              onChange={(e) => setOccupants(parseInt(e.target.value) || 1)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white outline-none"
-            />
-          </div>
+        {!isOnline && <PageState kind="offline" title={UI_COPY.status.offlineSaved} message={UI_COPY.status.connectionLost} />}
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">{UI_COPY.field.olderPeople}</label>
-            <input
-              type="number"
-              min={0}
-              value={elderlyCount}
-              onChange={(e) => setElderlyCount(parseInt(e.target.value) || 0)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white outline-none"
-            />
-          </div>
-        </div>
-
-        {/* Critical Risk Checkboxes */}
-        <div className="space-y-2 pt-2">
-          <label className="block text-xs font-semibold text-slate-300 mb-1">{UI_COPY.field.supportFlags}</label>
-          <div className="space-y-2 bg-slate-950 p-3.5 rounded-xl border border-slate-800">
-            <label className="flex items-center gap-3 cursor-pointer text-xs text-slate-200">
-              <input
-                type="checkbox"
-                checked={livesAlone}
-                onChange={(e) => setLivesAlone(e.target.checked)}
-                className="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-slate-900 border-slate-700"
-              />
-              <span>{UI_COPY.field.alone}</span>
-            </label>
-
-            <label className="flex items-center gap-3 cursor-pointer text-xs text-slate-200">
-              <input
-                type="checkbox"
-                checked={mobilityImpaired}
-                onChange={(e) => setMobilityImpaired(e.target.checked)}
-                className="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-slate-900 border-slate-700"
-              />
-              <span>{UI_COPY.field.mobility}</span>
-            </label>
-
-            <label className="flex items-center gap-3 cursor-pointer text-xs text-slate-200">
-              <input
-                type="checkbox"
-                checked={medicalNeed}
-                onChange={(e) => setMedicalNeed(e.target.checked)}
-                className="w-4 h-4 rounded text-rose-500 focus:ring-0 bg-slate-900 border-slate-700"
-              />
-              <span className="text-rose-300 font-semibold">
-                {UI_COPY.field.medical}
+        {/* Sync Banner if pending items */}
+        {pendingQueue.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-center justify-between text-xs text-amber-900 shadow-sm">
+            <div className="flex items-center gap-2">
+              <CloudOff className="w-4 h-4 text-amber-600" />
+              <span>
+                <strong>{pendingQueue.length}</strong> {UI_COPY.status.pendingReports}
               </span>
+            </div>
+
+            <button
+              onClick={handleSync}
+              disabled={syncing || !isOnline}
+              className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold rounded-xl flex items-center gap-1.5 transition shadow-sm text-xs"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
+              {syncing ? UI_COPY.status.syncing : UI_COPY.status.syncNow}
+            </button>
+          </div>
+        )}
+
+        {/* Field Intake Form in Clean White Card */}
+        <form onSubmit={handleSubmit} className="bg-white border border-slate-200/90 p-5 sm:p-6 rounded-2xl shadow-sm space-y-5">
+          <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-rose-500" />
+              Vulnerability & Distress Assessment
+            </h2>
+            <span className="text-[11px] font-semibold text-slate-500 bg-slate-50 px-2.5 py-0.5 rounded-lg border border-slate-200">
+              Works offline
+            </span>
+          </div>
+
+          {/* Location & GPS */}
+          <div className="space-y-2">
+            <label className="block text-xs font-bold text-slate-700">
+              {UI_COPY.field.location} <span className="text-rose-500">*</span>
             </label>
-          </div>
-        </div>
+            <input
+              type="text"
+              required
+              value={locationName}
+              onChange={(e) => setLocationName(e.target.value)}
+              placeholder="e.g. Sector 5-E, Korangi Creek Road near Masjid Bilal"
+              className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-sm transition"
+            />
 
-        {/* Hazard Exposure & Signal */}
-        <div className="grid grid-cols-2 gap-3 pt-2">
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                type="button"
+                onClick={handleGetLocation}
+                disabled={gettingLocation}
+                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 border border-slate-200 transition shadow-sm"
+              >
+                <LocateFixed className={`w-3.5 h-3.5 text-blue-600 ${gettingLocation ? "animate-spin" : ""}`} />
+                {lat && lng ? `Location: ${lat}, ${lng}` : UI_COPY.actions.captureLocation}
+              </button>
+              {lat && lng && (
+                <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  {UI_COPY.field.locationSaved}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Demographics & Household Vulnerabilities */}
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">{UI_COPY.field.peopleCount}</label>
+              <input
+                type="number"
+                min={1}
+                value={occupants}
+                onChange={(e) => setOccupants(parseInt(e.target.value) || 1)}
+                className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 outline-none focus:border-blue-500 shadow-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">{UI_COPY.field.olderPeople}</label>
+              <input
+                type="number"
+                min={0}
+                value={elderlyCount}
+                onChange={(e) => setElderlyCount(parseInt(e.target.value) || 0)}
+                className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 outline-none focus:border-blue-500 shadow-sm"
+              />
+            </div>
+          </div>
+
+          {/* Critical Risk Checkboxes */}
+          <div className="space-y-2 pt-1">
+            <label className="block text-xs font-bold text-slate-700 mb-1">{UI_COPY.field.supportFlags}</label>
+            <div className="space-y-2.5 bg-slate-50 p-4 rounded-xl border border-slate-200/90">
+              <label className="flex items-center gap-3 cursor-pointer text-xs font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={livesAlone}
+                  onChange={(e) => setLivesAlone(e.target.checked)}
+                  className="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-white border-slate-300"
+                />
+                <span>{UI_COPY.field.alone}</span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer text-xs font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={mobilityImpaired}
+                  onChange={(e) => setMobilityImpaired(e.target.checked)}
+                  className="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-white border-slate-300"
+                />
+                <span>{UI_COPY.field.mobility}</span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer text-xs font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={medicalNeed}
+                  onChange={(e) => setMedicalNeed(e.target.checked)}
+                  className="w-4 h-4 rounded text-rose-600 focus:ring-0 bg-white border-slate-300"
+                />
+                <span className="text-rose-600 font-bold">
+                  {UI_COPY.field.medical}
+                </span>
+              </label>
+            </div>
+          </div>
+
+          {/* Hazard Exposure & Signal */}
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">{UI_COPY.field.water}</label>
+              <select
+                value={waterDepth}
+                onChange={(e) => setWaterDepth(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 outline-none focus:border-blue-500 shadow-sm"
+              >
+                <option value="0.3">Ankle deep (~0.3m)</option>
+                <option value="0.8">Knee deep (~0.8m)</option>
+                <option value="1.5">Waist deep (~1.5m)</option>
+                <option value="2.5">Chest deep / 1st floor submerged (&gt;2m)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">{UI_COPY.field.signal}</label>
+              <select
+                value={signalBars}
+                onChange={(e) => setSignalBars(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 outline-none focus:border-blue-500 shadow-sm"
+              >
+                <option value="0">0 bars (Total Blackout)</option>
+                <option value="1">1 bar (Intermittent)</option>
+                <option value="2">2 bars (Weak 2G)</option>
+                <option value="4">3-4 bars (Good 4G)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Tactical Notes */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">{UI_COPY.field.water}</label>
-            <select
-              value={waterDepth}
-              onChange={(e) => setWaterDepth(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white outline-none"
-            >
-              <option value="0.3">Ankle deep (~0.3m)</option>
-              <option value="0.8">Knee deep (~0.8m)</option>
-              <option value="1.5">Waist deep (~1.5m)</option>
-              <option value="2.5">Chest deep / 1st floor submerged (&gt;2m)</option>
-            </select>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              {UI_COPY.field.notes}
+            </label>
+            <textarea
+              rows={3}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder={UI_COPY.field.notesPlaceholder}
+              className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-sm transition"
+            />
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">{UI_COPY.field.signal}</label>
-            <select
-              value={signalBars}
-              onChange={(e) => setSignalBars(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white outline-none"
-            >
-              <option value="0">0 bars (Total Blackout)</option>
-              <option value="1">1 bar (Intermittent)</option>
-              <option value="2">2 bars (Weak 2G)</option>
-              <option value="4">3-4 bars (Good 4G)</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Tactical Notes */}
-        <div>
-          <label className="block text-xs font-semibold text-slate-300 mb-1">
-            {UI_COPY.field.notes}
-          </label>
-          <textarea
-            rows={3}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          placeholder={UI_COPY.field.notesPlaceholder}
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-          />
-        </div>
-
-        {/* Submit Button */}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full py-3 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-amber-600/30 transition disabled:opacity-50"
-        >
-          <Send className="w-4 h-4" />
-          {submitting ? "Saving report..." : UI_COPY.actions.submitReport}
-        </button>
-      </form>
-    </main>
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition disabled:opacity-50"
+          >
+            <Send className="w-4 h-4" />
+            {submitting ? "Saving report..." : UI_COPY.actions.submitReport}
+          </button>
+        </form>
+      </main>
+    </div>
   );
 }

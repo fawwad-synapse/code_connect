@@ -18,13 +18,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className="font-sans bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased">
+    <html lang="en">
+      <body className="font-sans antialiased min-h-screen flex flex-row bg-[#f1f5f9] text-slate-800">
         <PwaRegister />
-        <OfflineBanner />
+        {/* Navbar component renders the left sidebar on dashboard, or top bar on other screens */}
         <Navbar />
-        <div className="flex-1 flex flex-col">{children}</div>
-        <Toaster richColors position="top-right" theme="dark" />
+        {/* Right / Main viewport area */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+          <OfflineBanner />
+          {children}
+        </div>
+        <Toaster richColors position="top-right" />
       </body>
     </html>
   );

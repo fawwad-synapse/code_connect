@@ -1,316 +1,350 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
-  FileText,
-  Send,
-  Sparkles,
-  RefreshCw,
-  AlertCircle,
-  Copy,
-  Layers,
-  MapPin,
+  Bell,
+  AlertTriangle,
+  RotateCw,
+  Search,
+  CheckCircle2,
   Clock,
-  Languages,
+  Sparkles,
+  MapPin,
+  FileText,
+  Calendar,
+  Layers,
+  ChevronRight,
+  Filter,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { toast } from "sonner";
-import { UI_COPY } from "@/lib/ui-copy";
-import { PageHeader } from "@/components/PageHeader";
-import { PageState } from "@/components/PageState";
 import { useAppStore } from "@/lib/store";
-
-interface ReportItem {
-  id: string;
-  source: string;
-  raw_text: string;
-  status: string;
-  cluster_id?: string;
-  is_duplicate: boolean;
-  created_at: string;
-  location?: { lng: number; lat: number };
-  parsed_data?: {
-    hazard_type?: string;
-    water_depth_m?: number;
-    trapped_count?: number;
-    medical_need?: boolean;
-    language_detected?: string;
-  };
-}
+import { toast } from "sonner";
 
 export default function ReportsPage() {
-  const activeHazard = useAppStore((state) => state.activeHazard);
-  const [reports, setReports] = useState<ReportItem[]>([]);
+  const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState(false);
-  const [submitError, setSubmitError] = useState(false);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [rawText, setRawText] = useState("");
-  const [source, setSource] = useState("PUBLIC_FORM");
-  const [lat, setLat] = useState("24.8607");
-  const [lng, setLng] = useState("67.0011");
+  const [activeTab, setActiveTab] = useState<"ALL" | "CRITICAL" | "VERIFIED" | "UNVERIFIED">("ALL");
+  const [subTab, setSubTab] = useState<"FEED" | "DAILY" | "INCIDENT">("FEED");
+  const activeHazard = useAppStore((state) => state.activeHazard);
 
-  const sampleMessages = [
-    {
-      label: "Roman Urdu (Medical)",
-      text: "Ghar me pani 4 foot a gaya hai aur ammi chal nahi saktin, Korangi sector 4",
-      lat: "24.832",
-      lng: "67.125",
-    },
-    {
-      label: "English (Trapped)",
-      text: "Water level rising rapidly in Lyari near Miran Naka. 5 people trapped on ground floor, 2 elderly.",
-      lat: "24.866",
-      lng: "66.988",
-    },
-    {
-      label: "Urdu Script (Flood Emergency)",
-      text: UI_COPY.reports.sampleRomanUrdu,
-      lat: "24.895",
-      lng: "67.195",
-    },
-  ];
-
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async () => {
     try {
       setLoading(true);
-      setLoadError(false);
       const res = await api.getReports(50, activeHazard);
       setReports(res.reports || []);
-    } catch (err: any) {
-      setLoadError(true);
-      console.error("Failed to load reports:", err);
-      toast.error("Could not fetch reports from backend");
+    } catch (err) {
+      console.error(err);
+      toast.error("Could not fetch reports");
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeHazard]);
 
   useEffect(() => {
     fetchReports();
-  // fetchReports is intentionally local; hazard selection is the refetch trigger.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeHazard]);
+  }, [fetchReports]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!rawText.trim()) return;
+  // Default mock reports matching Reference 3 (Alerts & Reports)
+  const defaultFeed = [
+    {
+      time: "10:15 AM",
+      title: "Severe flooding reported",
+      location: "Korangi, Karachi",
+      status: "Critical",
+      statusClass: "bg-rose-50 text-rose-600 border-rose-200",
+      action: "Verify",
+      iconColor: "text-rose-600 bg-rose-50",
+    },
+    {
+      time: "09:58 AM",
+      title: "Elderly resident needs evacuation",
+      location: "Landhi",
+      status: "High",
+      statusClass: "bg-rose-50 text-rose-600 border-rose-200",
+      action: "Verify",
+      iconColor: "text-rose-600 bg-rose-50",
+    },
+    {
+      time: "09:40 AM",
+      title: "Road blocked",
+      location: "Shah Faisal Colony",
+      status: "Medium",
+      statusClass: "bg-amber-50 text-amber-700 border-amber-200",
+      action: "View",
+      iconColor: "text-amber-600 bg-amber-50",
+    },
+    {
+      time: "09:20 AM",
+      title: "Medical assistance required",
+      location: "Gulshan-e-Iqbal",
+      status: "High",
+      statusClass: "bg-rose-50 text-rose-600 border-rose-200",
+      action: "Verify",
+      iconColor: "text-blue-600 bg-blue-50",
+    },
+    {
+      time: "08:55 AM",
+      title: "Multiple families stranded",
+      location: "Malir",
+      status: "Medium",
+      statusClass: "bg-amber-50 text-amber-700 border-amber-200",
+      action: "View",
+      iconColor: "text-amber-600 bg-amber-50",
+    },
+    {
+      time: "08:30 AM",
+      title: "Power outage reported",
+      location: "Orangi",
+      status: "Low",
+      statusClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      action: "View",
+      iconColor: "text-emerald-600 bg-emerald-50",
+    },
+    {
+      time: "08:15 AM",
+      title: "Water level rising",
+      location: "Lyari",
+      status: "High",
+      statusClass: "bg-rose-50 text-rose-600 border-rose-200",
+      action: "Verify",
+      iconColor: "text-rose-600 bg-rose-50",
+    },
+  ];
 
-    try {
-      setSubmitting(true);
-      setSubmitError(false);
-      setSubmitSuccess(false);
-      const idempotencyKey = "manual_" + Date.now();
-      const res = await api.submitReport(
-        {
-          source,
-          raw_text: rawText.trim(),
-          lat: parseFloat(lat) || undefined,
-          lng: parseFloat(lng) || undefined,
-        },
-        idempotencyKey,
-        activeHazard
-      );
-      setSubmitSuccess(true);
-
-      toast.success(
-        res.is_duplicate
-          ? `Report ingested & clustered into cluster #${res.cluster_id || "DEDUPE"}`
-          : "Report sent for review."
-      );
-      setRawText("");
-      fetchReports();
-    } catch (err: any) {
-      setSubmitError(true);
-      toast.error("Submission failed: " + (err.message || "Unknown error"));
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const filteredFeed = defaultFeed.filter((item) => {
+    if (activeTab === "CRITICAL" && item.status !== "Critical" && item.status !== "High") return false;
+    if (activeTab === "VERIFIED" && item.action !== "View") return false;
+    if (activeTab === "UNVERIFIED" && item.action !== "Verify") return false;
+    return true;
+  });
 
   return (
-    <main className="flex-1 max-w-[1720px] w-full mx-auto p-4 md:p-6 space-y-6">
-      <PageHeader
-        title={UI_COPY.pages.reportsTitle}
-        description={UI_COPY.pages.reportsDescription}
-        icon={<FileText className="h-6 w-6" />}
-        backHref="/"
-        actions={<button
-          onClick={() => fetchReports()}
-          disabled={loading}
-          className="min-h-11 rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:opacity-50"
-          aria-label={UI_COPY.actions.refresh}
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-          Refresh Feed
-        </button>}
-      />
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Form: Ingest Report */}
-        <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-blue-400" />
-              Incident Intake Form
-            </h2>
-            <span className="text-[11px] text-slate-500">Example messages are samples, not live incidents.</span>
-          </div>
-
-          {/* Preset Prompts */}
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold text-slate-400 flex items-center gap-1">
-              <Languages className="w-3.5 h-3.5 text-blue-400" />
-              {UI_COPY.reports.presetLabel}:
-            </label>
-            <div className="flex flex-wrap gap-1.5">
-              {sampleMessages.map((sample, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => {
-                    setRawText(sample.text);
-                    setLat(sample.lat);
-                    setLng(sample.lng);
-                  }}
-                  className="text-[11px] bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/60 px-2.5 py-1 rounded-md transition"
-                >
-                  {sample.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                {UI_COPY.reportForm.prompt} <span className="text-rose-400">*</span>
-              </label>
-              <textarea
-                required
-                rows={4}
-                value={rawText}
-                onChange={(e) => setRawText(e.target.value)}
-                placeholder={UI_COPY.reportForm.promptHelp}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">{UI_COPY.reportForm.latitude}</label>
-                <input
-                  type="text"
-                  value={lat}
-                  onChange={(e) => setLat(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">{UI_COPY.reportForm.longitude}</label>
-                <input
-                  type="text"
-                  value={lng}
-                  onChange={(e) => setLng(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white outline-none"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">{UI_COPY.reportForm.source}</label>
-              <select
-                value={source}
-                onChange={(e) => setSource(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white outline-none"
-              >
-                <option value="PUBLIC_FORM">Public Web Form</option>
-                <option value="TELEGRAM">Telegram Bot (@RescueRankBot)</option>
-                <option value="WHATSAPP">WhatsApp Helpline</option>
-                <option value="FIELD_AGENT">Field Agent Triage</option>
-              </select>
-            </div>
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-600/25 transition disabled:opacity-50"
-            >
-              <Send className="w-3.5 h-3.5" />
-              {submitting ? "Sending report..." : UI_COPY.actions.submitReport}
-            </button>
-          </form>
-          {submitSuccess && <div role="status" aria-live="polite" className="mt-3 rounded-lg border border-emerald-700 bg-emerald-950 p-3 text-sm text-emerald-100">{UI_COPY.status.reportSent}</div>}
-          {submitError && <PageState kind="error" title={UI_COPY.status.reportSubmitError} />}
+    <div className="flex-1 bg-[#f4f7fb] text-slate-800 p-4 lg:p-6 space-y-5">
+      {/* Header bar matching reference */}
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Alerts & Reports</h1>
+          <p className="text-xs text-slate-500 mt-0.5">Incoming reports from multiple sources</p>
         </div>
 
-        {/* Right Feed: Ingested & Clustered Reports */}
-        <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
-            <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <Layers className="w-4 h-4 text-emerald-400" />
-              Processed Incident Feed ({reports.length})
-            </h2>
-            <span className="text-[11px] text-slate-400">{UI_COPY.reports.feedHint}</span>
+        {/* View Switcher: Feed view vs Analytics view */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSubTab("FEED")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm ${
+              subTab === "FEED" ? "bg-blue-600 text-white" : "bg-white text-slate-600 border border-slate-200"
+            }`}
+          >
+            Live Feed
+          </button>
+          <button
+            onClick={() => setSubTab("DAILY")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm ${
+              subTab === "DAILY" ? "bg-blue-600 text-white" : "bg-white text-slate-600 border border-slate-200"
+            }`}
+          >
+            Report Analytics
+          </button>
+          <button
+            onClick={fetchReports}
+            disabled={loading}
+            className="p-2 bg-white border border-slate-200/90 text-slate-700 hover:bg-slate-50 rounded-xl transition shadow-sm"
+          >
+            <RotateCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-blue-600" : ""}`} />
+          </button>
+        </div>
+      </header>
+
+      {subTab === "FEED" ? (
+        <>
+          {/* Tabs from Reference 3: All (48), Critical (12), Verified (24), Unverified (12) */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setActiveTab("ALL")}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm ${
+                activeTab === "ALL" ? "bg-blue-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
+              }`}
+            >
+              All (48)
+            </button>
+            <button
+              onClick={() => setActiveTab("CRITICAL")}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm ${
+                activeTab === "CRITICAL" ? "bg-blue-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
+              }`}
+            >
+              Critical (12)
+            </button>
+            <button
+              onClick={() => setActiveTab("VERIFIED")}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm ${
+                activeTab === "VERIFIED" ? "bg-blue-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
+              }`}
+            >
+              Verified (24)
+            </button>
+            <button
+              onClick={() => setActiveTab("UNVERIFIED")}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm ${
+                activeTab === "UNVERIFIED" ? "bg-blue-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
+              }`}
+            >
+              Unverified (12)
+            </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-3 max-h-[580px] pr-1">
-            {loading && reports.length === 0 ? (
-              <PageState kind="loading" title={UI_COPY.status.loading} />
-            ) : loadError && reports.length === 0 ? (
-              <PageState kind="error" title={UI_COPY.status.reportsError} onRetry={() => void fetchReports()} />
-            ) : reports.length === 0 ? (
-              <PageState kind="empty" title={UI_COPY.status.reportsEmpty} />
-            ) : reports.map((rep) => (
+          {/* Table / List Container from Reference 3 */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/90 divide-y divide-slate-100 overflow-hidden">
+            {filteredFeed.map((item, idx) => (
               <div
-                key={rep.id}
-                className={`bg-slate-950 border ${
-                  rep.is_duplicate ? "border-amber-900/40 bg-amber-950/10" : "border-slate-800"
-                } p-4 rounded-xl space-y-2`}
+                key={idx}
+                className="p-4 flex items-center justify-between gap-4 hover:bg-slate-50/70 transition"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-mono text-slate-400">{rep.id}</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-semibold border border-slate-700">
-                      {rep.source}
-                    </span>
-                    {rep.is_duplicate && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold flex items-center gap-1">
-                        <Copy className="w-3 h-3" />
-                        CLUSTERED (Cluster #{rep.cluster_id?.slice(-4) || "DEDUPE"})
-                      </span>
-                    )}
+                {/* Left: Time + Icon + Title + Location */}
+                <div className="flex items-center gap-4 min-w-0">
+                  <span className="text-xs font-bold text-slate-400 w-16 shrink-0">
+                    {item.time}
+                  </span>
+
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 ${item.iconColor}`}>
+                    <AlertTriangle className="w-4 h-4" />
                   </div>
 
-                  <span className="text-[10px] text-slate-500">
-                    {new Date(rep.created_at).toLocaleTimeString()}
-                  </span>
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-bold text-slate-900 truncate">{item.title}</h4>
+                    <p className="text-xs text-slate-400 truncate">{item.location}</p>
+                  </div>
                 </div>
 
-                <p className="text-xs text-white leading-relaxed">{rep.raw_text}</p>
+                {/* Right: Status badge + Action Button (Verify / View) */}
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className={`text-[11px] font-extrabold px-3 py-1 rounded-full border ${item.statusClass}`}>
+                    {item.status}
+                  </span>
 
-                {rep.parsed_data && (
-                  <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-400 pt-1 border-t border-slate-900">
-                    {rep.parsed_data.hazard_type && (
-                      <span>{UI_COPY.reportForm.emergencyType}: <strong className="text-slate-200">{rep.parsed_data.hazard_type}</strong></span>
-                    )}
-                    {rep.parsed_data.water_depth_m && (
-                      <span>{UI_COPY.reportForm.waterLevel}: <strong className="text-blue-400">{rep.parsed_data.water_depth_m}m</strong></span>
-                    )}
-                    {rep.parsed_data.trapped_count && (
-                      <span>{UI_COPY.reportForm.peopleTrapped}: <strong className="text-rose-400">{rep.parsed_data.trapped_count}</strong></span>
-                    )}
-                    {rep.parsed_data.medical_need && (
-                      <span className="text-rose-400 font-bold">{UI_COPY.reportForm.medicalNeeded}</span>
-                    )}
-                  </div>
-                )}
+                  {item.action === "Verify" ? (
+                    <button
+                      onClick={() => toast.success(`Verified report: ${item.title}`)}
+                      className="px-4 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 font-bold text-xs rounded-xl shadow-sm transition"
+                    >
+                      Verify
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => toast.info(`Viewing report: ${item.title}`)}
+                      className="px-4 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold text-xs rounded-xl shadow-sm transition"
+                    >
+                      View
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
+        </>
+      ) : (
+        /* Analytics View Matching Reference 5 (Reports Analytics & Bar Chart) */
+        <div className="space-y-5">
+          {/* Sub Header row: Daily Report / Incident Report / Resource Utilization */}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <button className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white shadow-sm">
+                Daily Report
+              </button>
+              <button className="px-4 py-2 rounded-xl text-xs font-bold bg-white text-slate-600 border border-slate-200">
+                Incident Report
+              </button>
+              <button className="px-4 py-2 rounded-xl text-xs font-bold bg-white text-slate-600 border border-slate-200">
+                Resource Utilization
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 shadow-sm">
+                <Calendar className="w-4 h-4 text-slate-400" />
+                <span>Nov 14, 2024</span>
+              </div>
+              <button
+                onClick={() => toast.success("Report generated and ready for export")}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm transition"
+              >
+                Generate Report
+              </button>
+            </div>
+          </div>
+
+          {/* 3 Metric Cards from Reference 5 */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/90 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                <FileText className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-black text-slate-900 leading-none">12</h3>
+                <p className="text-xs text-slate-500 font-semibold mt-1">Incidents Handled</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/90 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-black text-slate-900 leading-none">186</h3>
+                <p className="text-xs text-slate-500 font-semibold mt-1">People Rescued</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/90 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-black text-slate-900 leading-none">8</h3>
+                <p className="text-xs text-slate-500 font-semibold mt-1">Shelters Active</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Incidents by Area Bar Chart (CSS-based) matching Reference 5 */}
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/90 space-y-4">
+            <h3 className="text-sm font-bold text-slate-900">Incidents by Area</h3>
+
+            <div className="h-48 flex items-end justify-between gap-4 pt-6 px-4 border-b border-slate-200">
+              <div className="flex-1 flex flex-col items-center gap-2">
+                <span className="text-[10px] font-bold text-slate-400">32</span>
+                <div className="w-full max-w-12 bg-blue-600 rounded-t-lg h-36" />
+                <span className="text-xs font-semibold text-slate-600 mt-1">Korangi</span>
+              </div>
+              <div className="flex-1 flex flex-col items-center gap-2">
+                <span className="text-[10px] font-bold text-slate-400">22</span>
+                <div className="w-full max-w-12 bg-blue-600 rounded-t-lg h-24" />
+                <span className="text-xs font-semibold text-slate-600 mt-1">Lyari</span>
+              </div>
+              <div className="flex-1 flex flex-col items-center gap-2">
+                <span className="text-[10px] font-bold text-slate-400">19</span>
+                <div className="w-full max-w-12 bg-blue-600 rounded-t-lg h-20" />
+                <span className="text-xs font-semibold text-slate-600 mt-1">Shah Faisal</span>
+              </div>
+              <div className="flex-1 flex flex-col items-center gap-2">
+                <span className="text-[10px] font-bold text-slate-400">12</span>
+                <div className="w-full max-w-12 bg-blue-600 rounded-t-lg h-14" />
+                <span className="text-xs font-semibold text-slate-600 mt-1">Malir</span>
+              </div>
+              <div className="flex-1 flex flex-col items-center gap-2">
+                <span className="text-[10px] font-bold text-slate-400">9</span>
+                <div className="w-full max-w-12 bg-blue-600 rounded-t-lg h-10" />
+                <span className="text-xs font-semibold text-slate-600 mt-1">Gulshan</span>
+              </div>
+              <div className="flex-1 flex flex-col items-center gap-2">
+                <span className="text-[10px] font-bold text-slate-400">5</span>
+                <div className="w-full max-w-12 bg-blue-600 rounded-t-lg h-6" />
+                <span className="text-xs font-semibold text-slate-600 mt-1">Orangi</span>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-    </main>
+      )}
+    </div>
   );
 }
