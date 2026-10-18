@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { ListOrdered, RefreshCw } from "lucide-react";
 import { api, PriorityItem } from "@/lib/api";
 import { PriorityList } from "@/components/PriorityList";
@@ -21,7 +21,7 @@ export default function PrioritiesPage() {
 
   const { selectedPriority, setSelectedPriority } = useAppStore();
 
-  const fetchPriorities = async () => {
+  const fetchPriorities = useCallback(async () => {
     try {
       setLoading(true);
       setLoadError(false);
@@ -35,11 +35,11 @@ export default function PrioritiesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page]);
 
   useEffect(() => {
     fetchPriorities();
-  }, [page]);
+  }, [fetchPriorities]);
 
   return (
     <main className="flex-1 max-w-[1720px] w-full mx-auto p-4 md:p-6 space-y-5 flex flex-col h-[calc(100vh-64px)]">

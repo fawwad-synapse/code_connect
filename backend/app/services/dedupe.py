@@ -1,4 +1,5 @@
 import math
+import re
 from typing import Dict, Any, List, Optional, Tuple
 from rapidfuzz import fuzz
 from app.core.logging import logger
@@ -15,7 +16,13 @@ def get_sentence_transformer_model():
         return _model
     try:
         from sentence_transformers import SentenceTransformer
-        _model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
+        # Never fetch model weights while handling a report. Deployments that want
+        # embeddings can bake this model into the image cache; otherwise the
+        # deterministic RapidFuzz path below is used.
+        _model = SentenceTransformer(
+            "paraphrase-multilingual-MiniLM-L12-v2",
+            local_files_only=True,
+        )
         logger.info("Loaded multilingual MiniLM sentence transformer model successfully")
     except Exception as e:
         logger.warn("sentence-transformers model could not be loaded; using rapidfuzz fallback", error=str(e))
@@ -57,8 +64,19 @@ def calculate_semantic_similarity(text1: str, text2: str) -> float:
         except Exception as e:
             logger.warn("Embedding similarity failed; falling back to rapidfuzz", error=str(e))
 
-    # RapidFuzz fallback (token set ratio handles reordered words across Roman Urdu / English)
-    ratio = fuzz.token_set_ratio(text1, text2) / 100.0
+    # RapidFuzz fallback. Normalize a small, documented set of emergency-report
+    # synonyms so common paraphrases still cluster without a downloaded model.
+    aliases = {
+        "flooding": "water", "flooded": "water", "pani": "water",
+        "elder": "elderly", "old": "elderly", "lady": "woman",
+        "stuck": "trapped", "stranded": "trapped", "home": "house",
+    }
+
+    def normalize(value: str) -> str:
+        words = re.findall(r"[\w]+", value.casefold())
+        return " ".join(aliases.get(word, word) for word in words)
+
+    ratio = fuzz.token_set_ratio(normalize(text1), normalize(text2)) / 100.0
     return float(ratio)
 
 

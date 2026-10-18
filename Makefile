@@ -9,7 +9,7 @@ help:
 	@echo "  make dev           - Run backend and frontend concurrently"
 	@echo "  make doctor        - Verify dependencies and environment health"
 	@echo "  make lint          - Lint backend (ruff) and frontend (eslint)"
-	@echo "  make test          - Run backend pytest suite"
+	@echo "  make test          - Run backend tests, frontend lint and frontend build in Docker"
 	@echo "  make docker-config - Validate Docker Compose configurations"
 
 setup:
@@ -43,7 +43,9 @@ lint:
 	cd frontend && npm run lint
 
 test:
-	cd backend && uv run --extra dev pytest -v
+	docker compose --profile test build backend-test frontend-test
+	docker compose --profile test run --rm backend-test
+	docker compose --profile test run --rm frontend-test
 
 docker-config:
 	docker compose config

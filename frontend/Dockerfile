@@ -6,6 +6,11 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
+FROM deps AS test
+COPY . .
+ENV NEXT_TELEMETRY_DISABLED=1
+CMD ["sh", "-c", "npm run lint && npm run build"]
+
 # Stage 2: Builder
 FROM node:20-alpine AS builder
 WORKDIR /app

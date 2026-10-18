@@ -80,3 +80,4 @@ app.include_router(simulate_router, prefix=settings.API_V1_PREFIX, tags=["Demo S
 # WebSocket router (accessible via both /api/v1/events and /ws/events)
 app.include_router(ws_router, prefix=settings.API_V1_PREFIX, tags=["WebSockets"])
 app.include_router(ws_router, prefix="/ws", tags=["WebSockets"])
+"""  """

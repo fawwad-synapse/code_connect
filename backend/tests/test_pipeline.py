@@ -1,4 +1,6 @@
 import pytest
+from sentence_transformers import util
+from app.services import dedupe
 from app.agents.fallback_parser import parse_report_fallback
 from app.services.dedupe import haversine_distance_meters, calculate_semantic_similarity, find_matching_cluster
 from app.agents.pipeline import report_pipeline
@@ -45,7 +47,8 @@ def test_prompt_injection_safety():
     assert res.water_depth_est_m > 0.0
 
 
-def test_haversine_distance_and_clustering():
+def test_haversine_distance_and_clustering_uses_rapidfuzz_offline(monkeypatch):
+    monkeypatch.setattr(dedupe, "get_sentence_transformer_model", lambda: None)
     # Two points in Lyari ~110m apart
     lat1, lon1 = 24.8600, 66.9950
     lat2, lon2 = 24.8608, 66.9955
@@ -66,6 +69,23 @@ def test_haversine_distance_and_clustering():
     match = find_matching_cluster(new_text, lon2, lat2, existing_reports, radius_meters=150.0, similarity_threshold=0.55)
     assert match is not None
     assert match[0] == "cluster_101"
+
+
+def test_embedding_similarity_uses_mock_model_without_download(monkeypatch):
+    class FakeModel:
+        def encode(self, texts, convert_to_tensor):
+            assert texts == ["water rising", "flood level increasing"]
+            assert convert_to_tensor is True
+            return [object(), object()]
+
+    class FakeSimilarity:
+        def item(self):
+            return 0.91
+
+    monkeypatch.setattr(dedupe, "get_sentence_transformer_model", lambda: FakeModel())
+    monkeypatch.setattr(util, "cos_sim", lambda left, right: FakeSimilarity())
+
+    assert calculate_semantic_similarity("water rising", "flood level increasing") == pytest.approx(0.91)
 
 
 @pytest.mark.asyncio

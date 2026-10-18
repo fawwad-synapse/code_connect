@@ -45,6 +45,24 @@ Docker startup automatically runs `alembic upgrade head` and seeds synthetic hou
 
 ## Tests, lint, and build
 
+The reproducible Docker test target installs all test tools in dedicated images and runs the backend on an internal Docker network with no internet route:
+
+```sh
+make test
+```
+
+If GNU Make is not installed (for example, a default Windows PowerShell setup), run the exact commands used by that target:
+
+```sh
+docker compose --profile test build backend-test frontend-test
+docker compose --profile test run --rm backend-test
+docker compose --profile test run --rm frontend-test
+```
+
+The last command runs both `npm run lint` and `npm run build`. No host Python or npm package installation is required.
+
+For a host-based development setup instead, install the development dependencies:
+
 Install the backend development extras and frontend dependencies:
 
 ```sh

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { WifiOff, RefreshCw, CheckCircle2 } from "lucide-react";
 import { getPendingOfflineReports, syncOfflineReports } from "@/lib/offline-db";
 import { toast } from "sonner";
@@ -11,10 +11,23 @@ export function OfflineBanner() {
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
-  const checkQueue = async () => {
+  const checkQueue = useCallback(async () => {
     const pending = await getPendingOfflineReports();
     setPendingCount(pending.length);
-  };
+  }, []);
+
+  const handleSync = useCallback(async () => {
+    setIsSyncing(true);
+    const { syncedCount, errors } = await syncOfflineReports();
+    setIsSyncing(false);
+    await checkQueue();
+
+    if (syncedCount > 0) {
+      toast.success(`${UI_COPY.status.syncComplete} (${syncedCount})`);
+    } else if (errors > 0) {
+      toast.error(UI_COPY.status.syncFailed);
+    }
+  }, [checkQueue]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -44,20 +57,7 @@ export function OfflineBanner() {
       window.removeEventListener("offline", handleOffline);
       clearInterval(interval);
     };
-  }, []);
-
-  const handleSync = async () => {
-    setIsSyncing(true);
-    const { syncedCount, errors } = await syncOfflineReports();
-    setIsSyncing(false);
-    await checkQueue();
-
-    if (syncedCount > 0) {
-      toast.success(`${UI_COPY.status.syncComplete} (${syncedCount})`);
-    } else if (errors > 0) {
-      toast.error(UI_COPY.status.syncFailed);
-    }
-  };
+  }, [checkQueue, handleSync]);
 
   if (isOnline && pendingCount === 0) {
     return null;

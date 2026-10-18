@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   MapPin,
   HeartPulse,
@@ -44,7 +44,7 @@ export default function FieldPwaPage() {
 
   const { setOfflineQueueCount } = useAppStore();
 
-  const loadQueue = async () => {
+  const loadQueue = useCallback(async () => {
     try {
       const items = await getPendingOfflineReports();
       setPendingQueue(items);
@@ -52,7 +52,29 @@ export default function FieldPwaPage() {
     } catch (e) {
       console.warn("Could not load local queue", e);
     }
-  };
+  }, [setOfflineQueueCount]);
+
+  const handleSync = useCallback(async () => {
+    if (!navigator.onLine) {
+      toast.error("Cannot sync: device is currently offline.");
+      return;
+    }
+
+    try {
+      setSyncing(true);
+      const res = await syncOfflineReports();
+      if (res.syncedCount > 0) {
+        toast.success(`Synced ${res.syncedCount} queued reports to central EOC database!`);
+      } else {
+        toast.info("All local field reports are already synced.");
+      }
+      await loadQueue();
+    } catch (err: any) {
+      toast.error("Sync failed: " + (err.message || "Unknown error"));
+    } finally {
+      setSyncing(false);
+    }
+  }, [loadQueue]);
 
   useEffect(() => {
     setIsOnline(navigator.onLine);
@@ -75,7 +97,7 @@ export default function FieldPwaPage() {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, []);
+  }, [handleSync, loadQueue]);
 
   const handleGetLocation = () => {
     if (!navigator.geolocation) {
@@ -100,28 +122,6 @@ export default function FieldPwaPage() {
       },
       { timeout: 8000 }
     );
-  };
-
-  const handleSync = async () => {
-    if (!navigator.onLine) {
-      toast.error("Cannot sync: device is currently offline.");
-      return;
-    }
-
-    try {
-      setSyncing(true);
-      const res = await syncOfflineReports();
-      if (res.syncedCount > 0) {
-        toast.success(`Synced ${res.syncedCount} queued reports to central EOC database!`);
-      } else {
-        toast.info("All local field reports are already synced.");
-      }
-      await loadQueue();
-    } catch (err: any) {
-      toast.error("Sync failed: " + (err.message || "Unknown error"));
-    } finally {
-      setSyncing(false);
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

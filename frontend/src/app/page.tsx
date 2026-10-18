@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ShieldAlert,
   AlertTriangle,
@@ -43,7 +43,7 @@ export default function OperationsCenterPage() {
 
   const { selectedPriority, setSelectedPriority, mapLayers, toggleLayer, setLatestPlan, setActiveFloodLevel } = useAppStore();
 
-  const fetchDashboardData = async (whatIfLevel: number | null = floodLevel) => {
+  const fetchDashboardData = useCallback(async (whatIfLevel: number | null) => {
     try {
       setLoading(true);
       setLoadError(false);
@@ -67,7 +67,7 @@ export default function OperationsCenterPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchDashboardData(50);
@@ -87,15 +87,15 @@ export default function OperationsCenterPage() {
           const eventType = String(payload.type || "").toUpperCase();
           if (eventType === "NEW_REPORT") {
             toast.info(`New incident reported: ${payload.data?.address || "Karachi"}`);
-            fetchDashboardData();
+            fetchDashboardData(50);
           } else if (eventType === "FLOOD_ALERT" && payload.data?.alerts_simulated) {
             toast.warning("Simulated alert (no real SMS sent)");
-            fetchDashboardData();
+            fetchDashboardData(50);
           } else if (
             ["FLOOD_ALERT", "PRIORITY_UPDATE", "SILENT_ZONE_TRIGGER", "ASSIGNMENT_CHANGE", "ASSIGNMENT_OVERRIDE"].includes(eventType)
           ) {
             toast.success(`Simulator event: ${payload.data?.name || "Updated"}`);
-            fetchDashboardData();
+            fetchDashboardData(50);
           }
         } catch {
           // Ignore parse errors
@@ -111,7 +111,7 @@ export default function OperationsCenterPage() {
     return () => {
       if (socket) socket.close();
     };
-  }, []);
+  }, [fetchDashboardData]);
 
   useEffect(() => {
     setActiveFloodLevel(floodLevel);
@@ -130,7 +130,7 @@ export default function OperationsCenterPage() {
   }, [floodLevel, setLatestPlan, setActiveFloodLevel]);
 
   const handleScenarioFinished = () => {
-    fetchDashboardData();
+    fetchDashboardData(floodLevel);
   };
 
   return (
@@ -283,7 +283,7 @@ export default function OperationsCenterPage() {
             </div>
 
             <button
-              onClick={() => fetchDashboardData()}
+              onClick={() => fetchDashboardData(floodLevel)}
               disabled={loading}
               className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
                   title={UI_COPY.actions.refresh}
@@ -298,7 +298,7 @@ export default function OperationsCenterPage() {
             {loading && priorities.length === 0 ? (
               <PageState kind="loading" title={UI_COPY.status.loading} />
             ) : loadError && priorities.length === 0 ? (
-              <PageState kind="error" title={UI_COPY.status.dashboardError} onRetry={() => void fetchDashboardData()} />
+              <PageState kind="error" title={UI_COPY.status.dashboardError} onRetry={() => void fetchDashboardData(floodLevel)} />
             ) : priorities.length === 0 ? (
               <PageState kind="empty" title={UI_COPY.status.noResults} />
             ) : priorities.map((item, idx) => (

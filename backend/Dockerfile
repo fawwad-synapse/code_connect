@@ -28,6 +28,15 @@ RUN uv pip install --no-cache torch --index-url https://download.pytorch.org/whl
 COPY requirements.txt pyproject.toml ./
 RUN uv pip install --no-cache -r requirements.txt
 
+# Test image: dependencies are installed while building; pytest itself performs
+# no package or model downloads and can run with external model hubs disabled.
+FROM builder AS test
+RUN uv pip install --no-cache pytest pytest-asyncio
+COPY . .
+ENV HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1
+CMD ["pytest", "-v"]
+
 # Stage 2: Runtime
 FROM python:3.12-slim AS runtime
 

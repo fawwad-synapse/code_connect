@@ -1,7 +1,10 @@
 import pytest
+import uuid
 from datetime import datetime, timedelta, timezone
 from httpx import AsyncClient, ASGITransport
+from sqlalchemy import text
 from app.core.config import settings
+from app.db.session import engine
 from app.api.v1.reports import duplicate_candidate_cutoff
 from app.api.v1.reports import effective_report_weight, incoming_report_wins, report_conflict
 settings.ENVIRONMENT = "test"
@@ -46,15 +49,29 @@ async def test_health_endpoint():
 
 @pytest.mark.asyncio
 async def test_zones_endpoint():
+    async with engine.begin() as connection:
+        zone = (await connection.execute(text(
+            "SELECT id, is_silent_zone FROM zones ORDER BY id LIMIT 1"
+        ))).one()
+        await connection.execute(
+            text("UPDATE zones SET is_silent_zone = true WHERE id = :id"),
+            {"id": zone.id},
+        )
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.get("/api/v1/zones")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "zones" in data
-        assert len(data["zones"]) >= 6
-        # Check that silent zone is flagged
-        assert any(z["is_silent_zone"] is True for z in data["zones"])
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/api/v1/zones")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert "zones" in data
+            assert len(data["zones"]) >= 6
+            assert any(z["id"] == zone.id and z["is_silent_zone"] is True for z in data["zones"])
+    finally:
+        async with engine.begin() as connection:
+            await connection.execute(
+                text("UPDATE zones SET is_silent_zone = :value WHERE id = :id"),
+                {"id": zone.id, "value": zone.is_silent_zone},
+            )
 
 
 @pytest.mark.asyncio
@@ -199,36 +216,123 @@ async def test_override_changes_resource_id():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         optimization = (await client.post("/api/v1/assignments/optimize?use_fallback_solver=true")).json()
-        resources_data = (await client.get("/api/v1/resources")).json()
-        priority_data = (await client.get("/api/v1/priorities?page=1&page_size=200")).json()
-        occupants_by_id = {item["id"]: item.get("occupants", 1) for item in priority_data["items"]}
-        medical_by_id = {item["id"]: item["chronic_medical_need"] for item in priority_data["items"]}
-        assignments = optimization["assignments"]
-        resources = resources_data["resources"]
-        loads = {resource["id"]: 0 for resource in resources}
-        for assignment in assignments:
-            loads[assignment["resource_id"]] += occupants_by_id.get(assignment["target_id"], 1)
+        assert optimization["assignments"], "Seed data must produce at least one assignment"
+        assignment = optimization["assignments"][0]
+        replacement_id = f"res_test_override_{uuid.uuid4().hex[:8]}"
+        audit_log_id = None
+        try:
+            async with engine.begin() as connection:
+                await connection.execute(text("""
+                    INSERT INTO resources (id, name, type, capacity, location, status, medical_capable)
+                    VALUES (:id, 'Test replacement ambulance', 'ambulance', 10000,
+                            ST_SetSRID(ST_MakePoint(67.0011, 24.8607), 4326),
+                            'available', true)
+                """), {"id": replacement_id})
 
-        for assignment in assignments:
-            for resource in resources:
-                if resource["id"] == assignment["resource_id"]:
-                    continue
-                if medical_by_id.get(assignment["target_id"]) and not resource["medical_capable"]:
-                    continue
-                if loads[resource["id"]] + occupants_by_id.get(assignment["target_id"], 1) > resource["capacity"]:
-                    continue
-                response = await client.patch(
-                    f"/api/v1/assignments/{assignment['id']}/override",
-                    json={"overridden_by": "test-coordinator", "override_reason": "Verified field reassignment", "new_resource_id": resource["id"]},
+            response = await client.patch(
+                f"/api/v1/assignments/{assignment['id']}/override",
+                json={
+                    "overridden_by": "test-coordinator",
+                    "override_reason": "Isolated replacement-resource regression test",
+                    "new_resource_id": replacement_id,
+                },
+            )
+            assert response.status_code == 200
+            assert response.json()["resource_id"] == replacement_id
+            audit_log_id = response.json()["audit_log_id"]
+            async with engine.connect() as connection:
+                stored_resource = (await connection.execute(
+                    text("SELECT resource_id FROM assignments WHERE id = :id"),
+                    {"id": assignment["id"]},
+                )).scalar_one()
+            assert stored_resource == replacement_id
+        finally:
+            async with engine.begin() as connection:
+                await connection.execute(
+                    text("UPDATE assignments SET resource_id = :resource_id WHERE id = :id"),
+                    {"resource_id": assignment["resource_id"], "id": assignment["id"]},
                 )
-                if response.status_code == 200:
-                    assert response.json()["resource_id"] == resource["id"]
-                    stored = (await client.get("/api/v1/assignments")).json()["assignments"]
-                    updated = next(item for item in stored if item["id"] == assignment["id"])
-                    assert updated["resource_id"] == resource["id"]
-                    return
-                assert response.status_code == 409
-        pytest.fail("No eligible replacement resource with remaining passenger capacity was available for override test")
+                if audit_log_id:
+                    await connection.execute(text("DELETE FROM audit_log WHERE id = :id"), {"id": audit_log_id})
+                await connection.execute(text("DELETE FROM resources WHERE id = :id"), {"id": replacement_id})
+
+
+@pytest.mark.asyncio
+async def test_real_report_posts_merge_late_weight_and_resolve_conflict(monkeypatch):
+    for key in ("OPENROUTER_API_KEY", "MISTRAL_API_KEY", "GROQ_API_KEY", "OPENAI_API_KEY"):
+        monkeypatch.setattr(settings, key, "")
+
+    tag = uuid.uuid4().hex[:10]
+    created_ids = []
+    transport = ASGITransport(app=app)
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            first = await client.post("/api/v1/reports", json={
+                "source": "volunteer",
+                "raw_text": f"{tag} water inside house near river, elder woman trapped, depth 0.4 meters",
+                "lng": 67.5000,
+                "lat": 24.5000,
+            })
+            second = await client.post("/api/v1/reports", json={
+                "source": "volunteer",
+                "raw_text": f"{tag} flooding near river bank, old lady stuck inside home, depth 0.4 meters",
+                "lng": 67.5005,
+                "lat": 24.5005,
+            })
+            assert first.status_code == second.status_code == 200
+            created_ids.extend([first.json()["id"], second.json()["id"]])
+            assert second.json()["is_duplicate"] is True
+            assert second.json()["cluster_id"] == first.json()["cluster_id"]
+
+            late = await client.post("/api/v1/reports", json={
+                "source": "volunteer",
+                "raw_text": f"{tag} late observation of knee deep water on an isolated road",
+                "lng": 67.5500,
+                "lat": 24.5000,
+                "reported_at": (datetime.now(timezone.utc) - timedelta(hours=12)).isoformat(),
+            })
+            assert late.status_code == 200
+            created_ids.append(late.json()["id"])
+
+            conflict_first = await client.post("/api/v1/reports", json={
+                "source": "volunteer",
+                "raw_text": f"{tag} creek checkpoint flood water depth 0.3 meters; one person waiting",
+                "lng": 67.6000,
+                "lat": 24.5000,
+            })
+            conflict_second = await client.post("/api/v1/reports", json={
+                "source": "volunteer",
+                "raw_text": f"{tag} creek checkpoint flood water depth 2.0 meters; one person waiting",
+                "lng": 67.6004,
+                "lat": 24.5004,
+            })
+            assert conflict_first.status_code == conflict_second.status_code == 200
+            created_ids.extend([conflict_first.json()["id"], conflict_second.json()["id"]])
+            assert conflict_second.json()["is_duplicate"] is True
+
+        async with engine.connect() as connection:
+            late_parsed = (await connection.execute(
+                text("SELECT parsed FROM reports WHERE id = :id"), {"id": late.json()["id"]}
+            )).scalar_one()
+            conflicts = (await connection.execute(text(
+                "SELECT id, parsed FROM reports WHERE id IN (:first, :second)"
+            ), {
+                "first": conflict_first.json()["id"],
+                "second": conflict_second.json()["id"],
+            })).mappings().all()
+
+        assert late_parsed["_evidence"]["late"] is True
+        assert late_parsed["_evidence"]["weight"] == pytest.approx(0.35)
+        conflict_by_id = {row["id"]: row["parsed"]["_conflict"] for row in conflicts}
+        winner_id = conflict_first.json()["id"]
+        assert conflict_by_id[conflict_first.json()["id"]]["winner_report_id"] == winner_id
+        assert conflict_by_id[conflict_second.json()["id"]]["winner_report_id"] == winner_id
+    finally:
+        if created_ids:
+            async with engine.begin() as connection:
+                await connection.execute(
+                    text("DELETE FROM reports WHERE id = ANY(:ids)"), {"ids": created_ids}
+                )
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   Truck,
   Anchor,
@@ -85,7 +85,7 @@ export function ResourceBoard() {
   const [overrideNeedsResource, setOverrideNeedsResource] = useState(false);
   const [submittingOverride, setSubmittingOverride] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setLoadError(false);
@@ -99,11 +99,11 @@ export function ResourceBoard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeFloodLevel]);
 
   useEffect(() => {
     fetchData();
-  }, [activeFloodLevel]);
+  }, [fetchData]);
 
   useEffect(() => {
     if (!latestPlan) return;
