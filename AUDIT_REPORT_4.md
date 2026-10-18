@@ -2,16 +2,16 @@
 
 ## Verdict and scores
 
-The flood prototype now has an offline-reproducible test path, consistent scoring checks, real report-policy integration coverage, capacity-aware planning and live shelter-demand output. The full backend suite passed on an internal Docker network with no internet route, and frontend lint/build passed without warnings. All six pages and all 13 documented API operations returned HTTP 200 for the flood flow tested. Browser offline behavior remains unverified, and there is no heatwave selector or heatwave scoring mode. The database volume was preserved, so this verifies a clean image/container rebuild, not an empty-volume seed.
+The prototype now has working flood and heatwave modes selected from the global header. Hazard-specific scores, forecasts, resources, cooling centers, timelines, reports and plans were exercised through the API; the full 46-test backend suite and frontend production build passed. Flood remains the default and its original regression suite remains green. Browser offline behavior and interactive browser clicks remain unverified. The database volume was preserved, so this verifies rebuilt images and reseeded demo data, not an empty-volume first boot.
 
 | Part | Score |
 |---|---:|
 | A — key questions | 8.0/10 |
 | B — hard parts | 7.5/10 |
 | C — affected groups | 7.0/10 |
-| D — disaster types | 0.5/10 |
+| D — disaster types | 7.5/10 |
 | E — judge-facing quality | 8.0/10 |
-| **Overall** | **6.2/10** |
+| **Overall** | **7.6/10** |
 
 ## Criteria
 
@@ -27,9 +27,9 @@ The flood prototype now has an offline-reproducible test path, consistent scorin
 | C2 | Elderly, disabled, chronically ill and isolated residents are weighted, visible and suitably matched. | PARTIALLY | Scoring/routing tests passed for these fields and medical-capable matching; priority API exposes them. | Household facts and responder capabilities are synthetic. |
 | C3 | Coordinators/volunteers receive dispatch, utilization, routes and re-planning. | PARTIALLY | Resource, optimize, assignments, override and scenario APIs all returned 200; optimizer returned assignments/unassigned/conflict; slider optimizer regression passed. | No live vehicle telemetry or certified navigation; browser map lines and panel updates were not visually verified. |
 | C4 | Shelter managers see expected demand vs capacity and overflow alternatives. | PARTIALLY | Live 100% scenario showed Korangi Community Hall demand 303, remaining capacity 40, overflow 263 and Malir Sports Complex as alternative. Frontend build includes demand bars/warnings. | Catchments are nearest-shelter estimates; no admission workflow or browser visual check. |
-| D1 | Support flood and at least heatwave with hazard-specific UI/scoring/resources/timeline/alerts. | FAILS | Source search found no heatwave implementation or hazard dropdown. All live checks were flood-only. | A real second hazard and same-household cross-hazard comparison are absent. |
-| D2 | Add a new hazard by configuration alone. | FAILS | Flood depth and ETA are embedded across scoring, routes, simulator and UI. | A hazard plugin/config schema and hazard-specific factor mappings would require code changes. |
-| E1 | Clean working prototype: healthy containers, all pages/endpoints, checks green, no 5xx. | PARTIALLY | `docker compose up --build -d` completed. Final `docker compose ps` showed db/backend/frontend healthy. `/`, `/priorities`, `/resources`, `/reports`, `/field`, `/prepositioning` returned 200. Every OpenAPI operation was exercised once in the flood flow and returned 200. Full pytest: 41 passed. Lint: zero warnings/errors. Build: 9/9 static pages generated. | Existing Postgres volume was preserved; browser console and interactive flows were not tested; heatwave endpoint flow does not exist. |
+| D1 | Support flood and at least heatwave with hazard-specific UI/scoring/resources/timeline/alerts. | MEETS | Flood and heatwave priority, explanation, zones, resources, assignments, timeline and reports endpoints returned 200. Full suite: 46 passed. `hh_zone_korangi_050` scored 69.7 for flood and 77.5 for heatwave under stored forecasts. Heat resources/cooling centers and the T-12h/T-6h/T-3h/T-0h timeline were returned live. The global dropdown changes URL/localStorage and the production frontend build passed. | Browser clicks were not automated, and both forecast/data sets are synthetic. |
+| D2 | Add a new hazard by configuration alone. | PARTIALLY | `hazard_profiles.yaml` centralizes display name/icon/accent, slider, drivers, vulnerability weights, urgency text, resource labels/eligibility, shelter name, timeline and bilingual alerts. Flood and heatwave use that shared profile loader. | A third hazard still needs a scoring function, forecast/seed fields and API branching; it is not configuration-only yet. |
+| E1 | Clean working prototype: healthy containers, all pages/endpoints, checks green, no 5xx. | PARTIALLY | `docker compose up --build -d` completed. Final `docker compose ps` showed db/backend/frontend healthy. `/`, `/priorities`, `/resources`, `/reports`, `/field`, `/prepositioning` returned 200. The hazard-aware endpoint matrix returned 200 for flood and heatwave. Full pytest: 46 passed. Lint/build completed cleanly. | Existing Postgres volume was preserved; browser console and interactive flows were not tested. |
 | E2 | README, trade-offs and demo explain choices and omissions. | MEETS | `README.md`, `docs/TRADEOFFS.md` and `docs/DEMO.md` now cover Docker startup/testing, choices, simulated boundaries, exact flood-demo clicks, scarcity and omissions. | Demo numbers can change after repeated scenarios, as documented. |
 | E3 | First-time usability, status visibility and accessibility basics. | PARTIALLY | Central copy, page headers, badges/icons, legends and state components exist. The four reported hook warnings plus the newer resource warning were removed; Docker lint returned no warnings. Frontend scan found no suspicious mojibake sequences. | WCAG contrast, keyboard, screen-reader, mobile and stress usability need real-browser/user testing. |
 | E4 | Synthetic/simulated/hardcoded data is labelled honestly. | MEETS | Permanent header badge, synthetic map label, scenario badges and missing-credential alert message are present. Demo opens with the synthetic-data statement. Health reports `synthetic_data: true`. | Operators still need governance so demo data cannot be mistaken for operational data outside this UI. |
@@ -40,7 +40,7 @@ The flood prototype now has an offline-reproducible test path, consistent scorin
 | Command/check | Result |
 |---|---|
 | `docker compose --profile test build backend-test frontend-test` | Both test images built. |
-| `docker compose --profile test run --rm backend-test` | **41 passed in 29.21s**, no exclusions. |
+| `docker compose --profile test run --rm backend-test pytest -q` | **46 passed in 33.25s**, no exclusions. |
 | `docker network inspect rescuerank_test_internal --format '{{.Internal}}'` | `true`; tests had database access but no external internet route. |
 | `docker compose --profile test run --rm frontend-test` | ESLint: no warnings/errors. Next build compiled, type-checked and generated 9/9 pages. |
 | `docker compose up --build -d` then `docker compose ps` | Images built; db, backend and frontend healthy. |
@@ -55,7 +55,7 @@ The flood prototype now has an offline-reproducible test path, consistent scorin
 
 ## Remaining risks, highest first
 
-1. No heatwave or configurable multi-hazard support.
+1. A third hazard is not configuration-only; exposure scoring, data fields and API wiring still require code.
 2. Offline/PWA behavior has not been demonstrated in a browser.
 3. All operational records, routes and alerts are synthetic or simulated.
 4. Default planning considers 100 of 600 households; excluded households are not “unassigned” in that plan.
@@ -64,4 +64,4 @@ The flood prototype now has an offline-reproducible test path, consistent scorin
 
 ## Judge recommendation
 
-Use the flood-only script in `docs/DEMO.md`. Do not demonstrate or claim heatwave. Do not claim real alert delivery. If browser offline behavior has not been manually checked immediately before judging, skip that step and call it unverified.
+Use the flood-first script in `docs/DEMO.md`, with its verified heatwave follow-up. Do not claim real alert delivery. If browser offline behavior and the hazard dropdown have not been manually checked immediately before judging, skip those UI steps or call them unverified.

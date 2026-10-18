@@ -56,9 +56,19 @@ Only demonstrate this after manually verifying it in the judge’s browser:
 
 Browser offline mode was not available in the automated verification environment, so this step remains **UNVERIFIED** here. Do not claim it passed until completing the five clicks above.
 
-## Heatwave — only if the hazard dropdown exists
+## Heatwave — verified optional follow-up
 
-Skip this section in the current build. No hazard dropdown or heatwave scoring mode exists, so switching the same household to heatwave is not a verified behavior. Do not imply that a flood-only slider is a hazard selector.
+Use this only after the three-minute flood story, or replace the offline step with it.
+
+1. In the header, open **Disaster type** and select **Heatwave**.
+2. Point out that the URL now contains `hazard=heatwave`; refresh once to show that the selection persists.
+3. On the main page, show that the slider is now **Peak heat index °C** and set it to **42°C**.
+4. Open the first priority. Read the heat-specific reasons, such as age, chronic illness, missing cooling, unreliable water/electricity, outdoor work or warning access.
+5. Open **Resource Board**. Show heat resources such as **Chhipa Heat Response Ambulance** and **Drinking Water Van**, plus **Cooling center** capacity instead of flood shelters.
+6. Open **Prepare teams before impact**. Show the four heat phases: **T-12h**, **T-6h**, **T-3h** and **T-0h**.
+7. Return to the header and select **Flood**. Confirm that flood remains the default mode and its flood-level slider, boats, shelters and flood timeline return.
+
+Expected: all data refetches for the selected hazard. The verified API run at 42°C ranked `hh_zone_malir_067` first at 56.5, returned heat ambulances/water vans, named the shelter type **Cooling center**, and returned all four timeline phases. A cross-hazard regression used the same household `hh_zone_korangi_050`: flood score 69.7 and heatwave score 77.5 under stored forecasts. The production UI build passed, but these exact clicks were not browser-automated; perform them once before judging.
 
 ## What is simulated
 
@@ -72,6 +82,6 @@ Skip this section in the current build. No hazard dropdown or heatwave scoring m
 
 - **Real household records:** unavailable and privacy-sensitive; synthetic data keeps the student demo safe.
 - **Real SMS/WhatsApp delivery:** requires approved accounts, consent and paid/operational infrastructure.
-- **Heatwave mode:** the current implementation is flood-specific; adding a label without hazard-specific scoring would be misleading.
+- **Additional hazards beyond flood and heatwave:** profiles centralize labels and policy, but a genuinely new exposure model still needs scoring, seed and API wiring code; configuration alone is not yet enough.
 - **A trained ML risk model:** no trustworthy labelled local outcome data was available; rule-based scoring is inspectable by responders.
 - **Live GPS and road navigation:** the demo uses estimated travel time and simulated closures, not certified emergency routing.
