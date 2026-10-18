@@ -112,6 +112,64 @@ async def test_priority_explanation_matches_list_score_for_same_scenario(flood_l
 
 
 @pytest.mark.asyncio
+async def test_heatwave_scores_differ_and_explanation_matches_list():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        flood = await client.get("/api/v1/priorities?page_size=200&hazard=flood")
+        heat = await client.get("/api/v1/priorities?page_size=200&hazard=heatwave")
+        assert flood.status_code == heat.status_code == 200
+        flood_scores = {item["id"]: item["priority_score"] for item in flood.json()["items"]}
+        heat_household = heat.json()["items"][0]
+        assert heat_household["priority_score"] != flood_scores[heat_household["id"]]
+        explanation = await client.get(
+            f"/api/v1/priorities/{heat_household['id']}/explanation?hazard=heatwave"
+        )
+        assert explanation.status_code == 200
+        assert explanation.json()["priority_score"] == heat_household["priority_score"]
+
+
+@pytest.mark.asyncio
+async def test_default_flood_is_identical_to_explicit_flood():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        default = await client.get("/api/v1/priorities?page_size=50")
+        explicit = await client.get("/api/v1/priorities?page_size=50&hazard=flood")
+        assert default.status_code == explicit.status_code == 200
+        assert default.json()["items"] == explicit.json()["items"]
+
+
+@pytest.mark.asyncio
+async def test_heatwave_slider_changes_scores():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        moderate = await client.get("/api/v1/priorities?page_size=200&hazard=heatwave&heat_index_c=35")
+        severe = await client.get("/api/v1/priorities?page_size=200&hazard=heatwave&heat_index_c=55")
+        assert moderate.status_code == severe.status_code == 200
+        assert any(
+            a["priority_score"] != b["priority_score"]
+            for a, b in zip(moderate.json()["items"], severe.json()["items"])
+        )
+
+
+@pytest.mark.asyncio
+async def test_heatwave_optimize_respects_capacity_and_medical_eligibility():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resource_response = await client.get("/api/v1/resources?hazard=heatwave")
+        optimization = await client.post(
+            "/api/v1/assignments/optimize?hazard=heatwave&use_fallback_solver=true"
+        )
+        assert resource_response.status_code == optimization.status_code == 200
+        resources = {item["id"]: item for item in resource_response.json()["resources"]}
+        loads = {}
+        for assignment in optimization.json()["assignments"]:
+            loads[assignment["resource_id"]] = loads.get(assignment["resource_id"], 0) + assignment["occupants"]
+            if assignment["medical_matched"]:
+                assert resources[assignment["resource_id"]]["medical_capable"] is True
+        assert all(load <= resources[resource_id]["capacity"] for resource_id, load in loads.items())
+
+
+@pytest.mark.asyncio
 async def test_flood_level_what_if_changes_priority_scores_without_mutating_forecast():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

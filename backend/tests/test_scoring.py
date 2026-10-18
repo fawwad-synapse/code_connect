@@ -1,5 +1,5 @@
 import pytest
-from app.services.scoring import calculate_priority_score, compute_vulnerability, compute_warning_gap
+from app.services.scoring import calculate_priority_score, calculate_heatwave_priority_score, compute_vulnerability, compute_warning_gap
 from app.services.uncertainty import evaluate_zone_uncertainty
 from app.services.explain import build_deterministic_explanation
 
@@ -160,3 +160,20 @@ def test_deterministic_explanation_builder():
     assert "elderly (78 years old)" in explanation
     assert "mobility impaired" in explanation
     assert "1.5m" in explanation
+
+
+def test_heatwave_missing_data_raises_risk_and_lowers_confidence():
+    known = calculate_heatwave_priority_score(
+        age=45, lives_alone=False, chronic_medical_need=False, housing_type="concrete",
+        floor_level=0, has_cooling=True, reliable_electricity=True, reliable_water=True,
+        outdoor_worker=False, heat_index_c=44, missing_fields=[],
+    )
+    missing = calculate_heatwave_priority_score(
+        age=45, lives_alone=False, chronic_medical_need=False, housing_type="concrete",
+        floor_level=0, has_cooling=None, reliable_electricity=None, reliable_water=None,
+        outdoor_worker=None, heat_index_c=44,
+        missing_fields=["has_cooling", "reliable_electricity", "reliable_water", "outdoor_worker"],
+    )
+    assert missing.priority_score > known.priority_score
+    assert missing.confidence < known.confidence
+    assert len(missing.missing_fields_assumed) >= 4
