@@ -19,6 +19,7 @@ import {
 import { api, ResourceItem, ShelterItem } from "@/lib/api";
 import { toast } from "sonner";
 import { UI_COPY } from "@/lib/ui-copy";
+import { PageState } from "@/components/PageState";
 
 interface AssignmentResult {
   id: string;
@@ -66,6 +67,8 @@ export function ResourceBoard() {
   const [hasOptimization, setHasOptimization] = useState(false);
   const [candidateCount, setCandidateCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [optimizationError, setOptimizationError] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<AssignmentResult | null>(null);
   const [overrideModalOpen, setOverrideModalOpen] = useState(false);
@@ -76,11 +79,13 @@ export function ResourceBoard() {
   const fetchData = async () => {
     try {
       setLoading(true);
+      setLoadError(false);
       const res = await api.getResources();
       setResources(res.resources || []);
       setShelters(res.shelters || []);
     } catch (err) {
       console.error("Failed to load resources:", err);
+      setLoadError(true);
       toast.error("Could not load resources from API");
     } finally {
       setLoading(false);
@@ -94,6 +99,7 @@ export function ResourceBoard() {
   const handleRunOptimization = async (useFallback = false) => {
     try {
       setOptimizing(true);
+      setOptimizationError(false);
       const result = await api.optimizeAssignments(useFallback);
       setAssignments(result.assignments || []);
       setConflicts(result.conflicts || []);
@@ -106,6 +112,7 @@ export function ResourceBoard() {
         }`
       );
     } catch (err: any) {
+      setOptimizationError(true);
       toast.error("Resource optimization failed: " + (err.message || "Unknown error"));
     } finally {
       setOptimizing(false);
@@ -218,7 +225,13 @@ export function ResourceBoard() {
           </div>
 
           <div className="space-y-2.5 max-h-[620px] overflow-y-auto pr-1">
-            {resources.map((res) => (
+            {loading && resources.length === 0 ? (
+              <PageState kind="loading" title={UI_COPY.status.loading} />
+            ) : loadError && resources.length === 0 ? (
+              <PageState kind="error" title={UI_COPY.status.resourcesError} onRetry={() => void fetchData()} />
+            ) : resources.length === 0 ? (
+              <PageState kind="empty" title={UI_COPY.status.resourcesEmpty} />
+            ) : resources.map((res) => (
               <div
                 key={res.id}
                 className="bg-slate-900/80 hover:bg-slate-850 border border-slate-800 p-3.5 rounded-xl transition flex items-center justify-between"
@@ -316,7 +329,10 @@ export function ResourceBoard() {
             </span>
           </div>
 
-          {assignments.length === 0 ? (
+          {optimizationError && <PageState kind="error" title={UI_COPY.status.assignmentsError} onRetry={() => void handleRunOptimization(false)} />}
+          {optimizing && !hasOptimization ? (
+            <PageState kind="loading" title={UI_COPY.status.loading} message={UI_COPY.status.assignmentsLoading} />
+          ) : assignments.length === 0 ? (
             <div className="bg-slate-900/50 border border-dashed border-slate-800 rounded-2xl p-12 text-center space-y-4">
               <div className="w-12 h-12 rounded-full bg-blue-500/10 text-blue-400 mx-auto flex items-center justify-center">
                 <Truck className="w-6 h-6" />

@@ -16,6 +16,7 @@ import { api, ZoneItem, PriorityItem, ResourceItem, ShelterItem, BlockedRoadItem
 import { useAppStore } from "@/lib/store";
 import { UI_COPY } from "@/lib/ui-copy";
 import { RiskBadge } from "@/components/RiskBadge";
+import { PageState } from "@/components/PageState";
 import { CircleHelp } from "lucide-react";
 
 // Fix Leaflet marker icons in React
@@ -54,26 +55,27 @@ export function MapClient({
   const [internalBlockedRoads, setInternalBlockedRoads] = useState<BlockedRoadItem[]>([]);
   const [waterways, setWaterways] = useState<WaterwayItem[]>([]);
   const [assignments, setAssignments] = useState<AssignmentMapItem[]>([]);
+  const [mapLoadError, setMapLoadError] = useState(false);
 
   useEffect(() => {
     if (!propZones || propZones.length === 0) {
-      api.getZones().then((res) => setInternalZones(res.zones || [])).catch(() => {});
+      api.getZones().then((res) => setInternalZones(res.zones || [])).catch(() => setMapLoadError(true));
     }
     if (!propPriorities || propPriorities.length === 0) {
       api.getPriorities({ page_size: 150, flood_level_percent: floodLevelPercent }).then((res) => {
         setInternalPriorities(res.items || []);
         setPriorityTotal(res.total || 0);
-      }).catch(() => {});
+      }).catch(() => setMapLoadError(true));
     }
     if (!propResources || propResources.length === 0) {
       api.getResources().then((res) => {
         setInternalResources(res.resources || []);
         setInternalShelters(res.shelters || []);
         setInternalBlockedRoads(res.blocked_roads || []);
-      }).catch(() => {});
+      }).catch(() => setMapLoadError(true));
     }
-    api.getWaterways().then((res) => setWaterways(res.waterways || [])).catch(() => {});
-    api.getAssignments().then((res) => setAssignments(res.assignments || [])).catch(() => {});
+    api.getWaterways().then((res) => setWaterways(res.waterways || [])).catch(() => setMapLoadError(true));
+    api.getAssignments().then((res) => setAssignments(res.assignments || [])).catch(() => setMapLoadError(true));
   }, [propZones, propPriorities, propResources, floodLevelPercent]);
 
   const zones = propZones && propZones.length > 0 ? propZones : internalZones;
@@ -302,6 +304,8 @@ export function MapClient({
             </CircleMarker>
           ))}
       </MapContainer>
+
+      {mapLoadError && <div className="absolute left-1/2 top-3 z-[1000] w-[min(90%,28rem)] -translate-x-1/2"><PageState kind="error" title={UI_COPY.status.mapError} message={UI_COPY.status.mapPartialError} /></div>}
 
       {/* Floating Map Legend & Layer Toggles */}
       <div className="absolute bottom-4 left-4 z-[1000] bg-slate-900/90 backdrop-blur border border-slate-800 rounded-lg p-2.5 text-xs text-slate-300 space-y-1.5 shadow-xl">

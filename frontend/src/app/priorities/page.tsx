@@ -9,11 +9,13 @@ import { useAppStore } from "@/lib/store";
 import { toast } from "sonner";
 import { UI_COPY } from "@/lib/ui-copy";
 import { PageHeader } from "@/components/PageHeader";
+import { PageState } from "@/components/PageState";
 
 export default function PrioritiesPage() {
   const [priorities, setPriorities] = useState<PriorityItem[]>([]);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
+  const [loadError, setLoadError] = useState(false);
   const [page, setPage] = useState<number>(1);
   const pageSize = 50;
 
@@ -22,10 +24,12 @@ export default function PrioritiesPage() {
   const fetchPriorities = async () => {
     try {
       setLoading(true);
+      setLoadError(false);
       const res = await api.getPriorities({ page, page_size: pageSize });
       setPriorities(res.items || []);
       setTotalCount(res.total || 0);
     } catch (err: any) {
+      setLoadError(true);
       console.error("Failed to load priorities:", err);
       toast.error("Could not fetch priority ledger from backend");
     } finally {
@@ -59,11 +63,17 @@ export default function PrioritiesPage() {
 
       {/* Main Content Area: Priority Table */}
       <div className="flex-1 min-h-0">
-        <PriorityList
+        {loading && priorities.length === 0 ? (
+          <PageState kind="loading" title={UI_COPY.status.loading} />
+        ) : loadError && priorities.length === 0 ? (
+          <PageState kind="error" title={UI_COPY.status.prioritiesError} onRetry={() => void fetchPriorities()} />
+        ) : priorities.length === 0 ? (
+          <PageState kind="empty" title={UI_COPY.status.noResults} />
+        ) : <PriorityList
           priorities={priorities}
           onSelectPriority={(item) => setSelectedPriority(item)}
           selectedId={selectedPriority?.id}
-        />
+        />}
       </div>
 
       {/* Slide-over Explainability Drawer */}

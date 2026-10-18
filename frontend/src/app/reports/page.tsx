@@ -17,6 +17,7 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { UI_COPY } from "@/lib/ui-copy";
 import { PageHeader } from "@/components/PageHeader";
+import { PageState } from "@/components/PageState";
 
 interface ReportItem {
   id: string;
@@ -39,6 +40,9 @@ interface ReportItem {
 export default function ReportsPage() {
   const [reports, setReports] = useState<ReportItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [submitError, setSubmitError] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [rawText, setRawText] = useState("");
   const [source, setSource] = useState("PUBLIC_FORM");
@@ -69,9 +73,11 @@ export default function ReportsPage() {
   const fetchReports = async () => {
     try {
       setLoading(true);
+      setLoadError(false);
       const res = await api.getReports(50);
       setReports(res.reports || []);
     } catch (err: any) {
+      setLoadError(true);
       console.error("Failed to load reports:", err);
       toast.error("Could not fetch reports from backend");
     } finally {
@@ -89,6 +95,8 @@ export default function ReportsPage() {
 
     try {
       setSubmitting(true);
+      setSubmitError(false);
+      setSubmitSuccess(false);
       const idempotencyKey = "manual_" + Date.now();
       const res = await api.submitReport(
         {
@@ -99,6 +107,7 @@ export default function ReportsPage() {
         },
         idempotencyKey
       );
+      setSubmitSuccess(true);
 
       toast.success(
         res.is_duplicate
@@ -108,6 +117,7 @@ export default function ReportsPage() {
       setRawText("");
       fetchReports();
     } catch (err: any) {
+      setSubmitError(true);
       toast.error("Submission failed: " + (err.message || "Unknown error"));
     } finally {
       setSubmitting(false);
@@ -226,6 +236,8 @@ export default function ReportsPage() {
               {submitting ? "Sending report..." : UI_COPY.actions.submitReport}
             </button>
           </form>
+          {submitSuccess && <div role="status" aria-live="polite" className="mt-3 rounded-lg border border-emerald-700 bg-emerald-950 p-3 text-sm text-emerald-100">{UI_COPY.status.reportSent}</div>}
+          {submitError && <PageState kind="error" title={UI_COPY.status.reportSubmitError} />}
         </div>
 
         {/* Right Feed: Ingested & Clustered Reports */}
@@ -239,7 +251,13 @@ export default function ReportsPage() {
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-3 max-h-[580px] pr-1">
-            {reports.map((rep) => (
+            {loading && reports.length === 0 ? (
+              <PageState kind="loading" title={UI_COPY.status.loading} />
+            ) : loadError && reports.length === 0 ? (
+              <PageState kind="error" title={UI_COPY.status.reportsError} onRetry={() => void fetchReports()} />
+            ) : reports.length === 0 ? (
+              <PageState kind="empty" title={UI_COPY.status.reportsEmpty} />
+            ) : reports.map((rep) => (
               <div
                 key={rep.id}
                 className={`bg-slate-950 border ${

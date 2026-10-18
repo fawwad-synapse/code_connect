@@ -23,11 +23,13 @@ import { toast } from "sonner";
 import { UI_COPY } from "@/lib/ui-copy";
 import { RiskBadge } from "@/components/RiskBadge";
 import { PageHeader } from "@/components/PageHeader";
+import { PageState } from "@/components/PageState";
 
 export default function OperationsCenterPage() {
   const [priorities, setPriorities] = useState<PriorityItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [floodLevel, setFloodLevel] = useState(50);
   const [baselineScores, setBaselineScores] = useState<Record<string, number>>({});
   const [stats, setStats] = useState({
@@ -42,6 +44,7 @@ export default function OperationsCenterPage() {
   const fetchDashboardData = async (whatIfLevel: number | null = floodLevel) => {
     try {
       setLoading(true);
+      setLoadError(false);
       const baselineRes = await api.getPriorities({ page_size: 15 });
       setBaselineScores(Object.fromEntries(baselineRes.items.map((item) => [item.id, item.priority_score])));
       const prioRes = whatIfLevel === null
@@ -56,6 +59,7 @@ export default function OperationsCenterPage() {
         criticalCases: highPrio > 0 ? highPrio : prioRes.total,
       }));
     } catch (err) {
+      setLoadError(true);
       console.error("Dashboard fetch failed:", err);
       toast.error("Could not load real-time priority telemetry");
     } finally {
@@ -268,7 +272,13 @@ export default function OperationsCenterPage() {
 
           {/* Priority Queue List */}
           <div className="flex-1 overflow-y-auto divide-y divide-slate-800/80 p-2 space-y-1">
-            {priorities.map((item, idx) => (
+            {loading && priorities.length === 0 ? (
+              <PageState kind="loading" title={UI_COPY.status.loading} />
+            ) : loadError && priorities.length === 0 ? (
+              <PageState kind="error" title={UI_COPY.status.dashboardError} onRetry={() => void fetchDashboardData()} />
+            ) : priorities.length === 0 ? (
+              <PageState kind="empty" title={UI_COPY.status.noResults} />
+            ) : priorities.map((item, idx) => (
               <div
                 key={item.id}
                 onClick={() => setSelectedPriority(item)}

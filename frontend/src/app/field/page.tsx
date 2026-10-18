@@ -21,6 +21,7 @@ import { useAppStore } from "@/lib/store";
 import { toast } from "sonner";
 import { UI_COPY } from "@/lib/ui-copy";
 import { PageHeader } from "@/components/PageHeader";
+import { PageState } from "@/components/PageState";
 
 export default function FieldPwaPage() {
   const [isOnline, setIsOnline] = useState(true);
@@ -173,14 +174,16 @@ export default function FieldPwaPage() {
         icon={<CloudLightning className="h-6 w-6" />}
         actions={isOnline ? (
           <span className="min-h-11 inline-flex items-center gap-2 rounded-full border border-emerald-700 bg-emerald-950 px-4 text-sm font-semibold text-emerald-200">
-            <Wifi aria-hidden="true" className="h-4 w-4" /> Online
+            <Wifi aria-hidden="true" className="h-4 w-4" /> {UI_COPY.status.online}
           </span>
         ) : (
           <span className="min-h-11 inline-flex items-center gap-2 rounded-full border border-amber-700 bg-amber-950 px-4 text-sm font-semibold text-amber-100">
-            <WifiOff aria-hidden="true" className="h-4 w-4" /> Offline
+            <WifiOff aria-hidden="true" className="h-4 w-4" /> {UI_COPY.status.offline}
           </span>
         )}
       />
+
+      {!isOnline && <PageState kind="offline" title={UI_COPY.status.offlineSaved} message={UI_COPY.status.connectionLost} />}
 
       {/* Sync Banner if pending items */}
       {pendingQueue.length > 0 && (
@@ -188,7 +191,7 @@ export default function FieldPwaPage() {
           <div className="flex items-center gap-2">
             <CloudOff className="w-4 h-4 text-amber-400" />
             <span>
-              <strong>{pendingQueue.length}</strong> report(s) saved on this device and not sent yet.
+              <strong>{pendingQueue.length}</strong> {UI_COPY.status.pendingReports}
             </span>
           </div>
 
@@ -198,7 +201,7 @@ export default function FieldPwaPage() {
             className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold rounded-lg flex items-center gap-1.5 transition shadow"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
-            {syncing ? "Syncing..." : "Sync Now"}
+            {syncing ? UI_COPY.status.syncing : UI_COPY.status.syncNow}
           </button>
         </div>
       )}

@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { WifiOff, RefreshCw, CheckCircle2 } from "lucide-react";
 import { getPendingOfflineReports, syncOfflineReports } from "@/lib/offline-db";
 import { toast } from "sonner";
+import { UI_COPY } from "@/lib/ui-copy";
 
 export function OfflineBanner() {
   const [isOnline, setIsOnline] = useState<boolean>(true);
@@ -23,13 +24,13 @@ export function OfflineBanner() {
 
     const handleOnline = async () => {
       setIsOnline(true);
-      toast.success("Network connection restored! Synchronizing queued reports...");
+      toast.success(UI_COPY.status.connectionRestored);
       await handleSync();
     };
 
     const handleOffline = () => {
       setIsOnline(false);
-      toast.warning("Network connection lost. Offline mode activated.");
+      toast.warning(UI_COPY.status.connectionLost);
       checkQueue();
     };
 
@@ -52,9 +53,9 @@ export function OfflineBanner() {
     await checkQueue();
 
     if (syncedCount > 0) {
-      toast.success(`Synced ${syncedCount} offline report(s) without duplicates!`);
+      toast.success(`${UI_COPY.status.syncComplete} (${syncedCount})`);
     } else if (errors > 0) {
-      toast.error("Could not sync some offline reports; will retry automatically.");
+      toast.error(UI_COPY.status.syncFailed);
     }
   };
 
@@ -63,17 +64,17 @@ export function OfflineBanner() {
   }
 
   return (
-    <div className="bg-amber-600 text-slate-950 px-4 py-2 text-xs font-semibold flex items-center justify-between sticky top-0 z-50 shadow-md">
+    <div role="status" aria-live="polite" className="bg-amber-600 text-slate-950 px-4 py-2 text-sm font-semibold flex items-center justify-between sticky top-0 z-50 shadow-md">
       <div className="flex items-center gap-2">
         {!isOnline ? (
           <>
             <WifiOff className="w-4 h-4 animate-bounce text-slate-950" />
-            <span>OFFLINE MODE ACTIVE: All submissions safely stored in local IndexedDB.</span>
+            <span>{UI_COPY.status.connectionLost}</span>
           </>
         ) : (
           <>
             <CheckCircle2 className="w-4 h-4 text-slate-950" />
-            <span>Online with {pendingCount} unsynced report(s) pending in queue.</span>
+            <span>{UI_COPY.status.pendingReports}</span>
           </>
         )}
       </div>
@@ -81,7 +82,7 @@ export function OfflineBanner() {
       <div className="flex items-center gap-3">
         {pendingCount > 0 && (
           <span className="bg-amber-800 text-amber-100 px-2 py-0.5 rounded-full text-2xs">
-            {pendingCount} Queued
+            {pendingCount} {UI_COPY.status.queued}
           </span>
         )}
         {isOnline && (
@@ -91,7 +92,7 @@ export function OfflineBanner() {
             className="bg-slate-950 hover:bg-slate-900 text-amber-300 px-3 py-1 rounded flex items-center gap-1.5 transition disabled:opacity-50"
           >
             <RefreshCw className={`w-3 h-3 ${isSyncing ? "animate-spin" : ""}`} />
-            {isSyncing ? "Syncing..." : "Sync Now"}
+            {isSyncing ? UI_COPY.status.syncing : UI_COPY.status.syncNow}
           </button>
         )}
       </div>

@@ -14,6 +14,7 @@ import {
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { UI_COPY } from "@/lib/ui-copy";
+import { PageState } from "@/components/PageState";
 
 interface ActionItem {
   time_window: string;
@@ -29,15 +30,18 @@ interface ActionItem {
 export function Timeline() {
   const [timeline, setTimeline] = useState<ActionItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [activeTab, setActiveTab] = useState<"ALL" | "T-6h" | "T-3h" | "T-0h">("ALL");
 
   const fetchTimeline = async () => {
     try {
       setLoading(true);
+      setLoadError(false);
       const res = await api.getTimeline();
       setTimeline(res.timeline || []);
     } catch (err: any) {
       console.error("Failed to load timeline:", err);
+      setLoadError(true);
       toast.error("Could not fetch pre-positioning timeline");
     } finally {
       setLoading(false);
@@ -122,7 +126,13 @@ export function Timeline() {
       </div>
 
       {/* Timeline Stream */}
-      <div className="space-y-4">
+      {loading && timeline.length === 0 ? (
+        <PageState kind="loading" title={UI_COPY.status.loading} />
+      ) : loadError && timeline.length === 0 ? (
+        <PageState kind="error" title={UI_COPY.status.timelineError} onRetry={() => void fetchTimeline()} />
+      ) : filteredItems.length === 0 ? (
+        <PageState kind="empty" title={UI_COPY.status.timelineEmpty} />
+      ) : <div className="space-y-4">
         {filteredItems.map((item, idx) => (
           <div
             key={idx}
@@ -166,7 +176,7 @@ export function Timeline() {
             </div>
           </div>
         ))}
-      </div>
+      </div>}
     </div>
   );
 }
