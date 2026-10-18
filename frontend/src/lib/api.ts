@@ -157,8 +157,10 @@ export const api = {
     return res.json();
   },
 
-  async optimizeAssignments(useFallback = false) {
-    const res = await fetch(`${API_BASE}/api/v1/assignments/optimize?use_fallback_solver=${useFallback}`, {
+  async optimizeAssignments(useFallback = false, floodLevelPercent?: number) {
+    const params = new URLSearchParams({ use_fallback_solver: String(useFallback) });
+    if (floodLevelPercent !== undefined) params.set("flood_level_percent", String(floodLevelPercent));
+    const res = await fetch(`${API_BASE}/api/v1/assignments/optimize?${params.toString()}`, {
       method: "POST",
     });
     return res.json();

@@ -7,6 +7,8 @@ interface AppState {
 
   activeScenario: string | null;
   setActiveScenario: (scenario: string | null) => void;
+  latestPlan: any;
+  setLatestPlan: (plan: any) => void;
 
   mapLayers: {
     zones: boolean;
@@ -37,6 +39,8 @@ export const useAppStore = create<AppState>((set) => ({
 
   activeScenario: null,
   setActiveScenario: (scenario) => set({ activeScenario: scenario }),
+  latestPlan: null,
+  setLatestPlan: (plan) => set({ latestPlan: plan }),
 
   mapLayers: {
     zones: true,

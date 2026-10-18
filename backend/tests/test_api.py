@@ -171,6 +171,18 @@ async def test_dispatch_order_matches_priority_endpoint():
 
 
 @pytest.mark.asyncio
+async def test_optimize_uses_flood_what_if_score_for_candidates():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        dry = await client.post("/api/v1/assignments/optimize?use_fallback_solver=true&flood_level_percent=0")
+        severe = await client.post("/api/v1/assignments/optimize?use_fallback_solver=true&flood_level_percent=100")
+        assert dry.status_code == severe.status_code == 200
+        dry_scores = {a["target_id"]: a["priority_score"] for a in dry.json()["assignments"]}
+        severe_scores = {a["target_id"]: a["priority_score"] for a in severe.json()["assignments"]}
+        assert any(dry_scores.get(hid) != score for hid, score in severe_scores.items())
+
+
+@pytest.mark.asyncio
 async def test_override_changes_resource_id():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

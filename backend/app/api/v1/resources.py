@@ -2,7 +2,7 @@ import uuid
 import json
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException, Body, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from pydantic import BaseModel, Field
@@ -172,6 +172,7 @@ async def list_assignments(db: AsyncSession = Depends(get_db)):
 @router.post("/assignments/optimize")
 async def optimize_assignments(
     use_fallback_solver: bool = False,
+    flood_level_percent: Optional[float] = Query(None, ge=0, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -211,12 +212,16 @@ async def optimize_assignments(
     targets = []
     for h in h_rows:
         missing = h["missing_fields"].get("fields", []) if isinstance(h["missing_fields"], dict) else []
+        forecast_depth = h["depth_m_forecast"]
+        if flood_level_percent is not None:
+            from app.services.scoring import _config
+            forecast_depth = _config.get("what_if", {}).get("flood_level_max_depth_m", 2.5) * flood_level_percent / 100.0
         score = calculate_priority_score(
             age=h["age"], lives_alone=h["lives_alone"], mobility_impaired=h["mobility_impaired"],
             chronic_medical_need=h["chronic_medical_need"], housing_type=h["housing_type"],
             floor_level=h["floor_level"], zone_deprivation=h["deprivation_index"],
             has_smartphone=h["has_smartphone"], signal_quality=h["signal_quality"],
-            alert_acknowledged=h["alert_acknowledged"], forecast_depth_m=h["depth_m_forecast"],
+            alert_acknowledged=h["alert_acknowledged"], forecast_depth_m=forecast_depth,
             elevation_m=h["elevation_m"], eta_hours=h["eta_hours"], is_silent_zone=h["is_silent_zone"],
             is_fallback_hazard=h["is_fallback"], missing_fields=missing,
             water_proximity_m=h["water_proximity_m"],

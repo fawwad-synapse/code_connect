@@ -32,6 +32,7 @@ export default function OperationsCenterPage() {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [floodLevel, setFloodLevel] = useState(50);
+  const [planUpdated, setPlanUpdated] = useState(false);
   const [baselineScores, setBaselineScores] = useState<Record<string, number>>({});
   const [stats, setStats] = useState({
     criticalCases: 0,
@@ -40,7 +41,7 @@ export default function OperationsCenterPage() {
     shelterCount: 4,
   });
 
-  const { selectedPriority, setSelectedPriority, mapLayers, toggleLayer } = useAppStore();
+  const { selectedPriority, setSelectedPriority, mapLayers, toggleLayer, setLatestPlan } = useAppStore();
 
   const fetchDashboardData = async (whatIfLevel: number | null = floodLevel) => {
     try {
@@ -112,6 +113,21 @@ export default function OperationsCenterPage() {
     };
   }, []);
 
+  useEffect(() => {
+    setPlanUpdated(false);
+    const timeout = window.setTimeout(async () => {
+      try {
+        const plan = await api.optimizeAssignments(false, floodLevel);
+        setLatestPlan(plan);
+        window.dispatchEvent(new CustomEvent("rescue-plan-updated", { detail: plan }));
+        setPlanUpdated(true);
+      } catch (error) {
+        console.error("Could not update the what-if plan", error);
+      }
+    }, 650);
+    return () => window.clearTimeout(timeout);
+  }, [floodLevel, setLatestPlan]);
+
   const handleScenarioFinished = () => {
     fetchDashboardData();
   };
@@ -146,6 +162,7 @@ export default function OperationsCenterPage() {
           className="mt-3 w-full accent-cyan-400"
           aria-label="Flood level percentage"
         />
+        <div aria-live="polite" className="mt-1 min-h-5 text-xs text-emerald-300">{planUpdated ? "Plan updated" : "Updating plan…"}</div>
         <div className="mt-3 grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-5">
           {priorities.slice(0, 5).map((item) => {
             const before = baselineScores[item.id];

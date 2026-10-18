@@ -78,6 +78,12 @@ export function MapClient({
     api.getAssignments().then((res) => setAssignments(res.assignments || [])).catch(() => setMapLoadError(true));
   }, [propZones, propPriorities, propResources, floodLevelPercent]);
 
+  useEffect(() => {
+    const refresh = () => api.getAssignments().then((res) => setAssignments(res.assignments || []));
+    window.addEventListener("rescue-plan-updated", refresh);
+    return () => window.removeEventListener("rescue-plan-updated", refresh);
+  }, []);
+
   const zones = propZones && propZones.length > 0 ? propZones : internalZones;
   const priorities = propPriorities && propPriorities.length > 0 ? propPriorities : internalPriorities;
   const resources = propResources && propResources.length > 0 ? propResources : internalResources;

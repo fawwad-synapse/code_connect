@@ -20,6 +20,8 @@ import { api, ResourceItem, ShelterItem } from "@/lib/api";
 import { toast } from "sonner";
 import { UI_COPY } from "@/lib/ui-copy";
 import { PageState } from "@/components/PageState";
+import { useAppStore } from "@/lib/store";
+import { useAppStore } from "@/lib/store";
 
 interface AssignmentResult {
   id: string;
@@ -59,6 +61,8 @@ interface UnassignedTarget {
 }
 
 export function ResourceBoard() {
+  const latestPlan = useAppStore((state) => state.latestPlan);
+  const latestPlan = useAppStore((state) => state.latestPlan);
   const [resources, setResources] = useState<ResourceItem[]>([]);
   const [shelters, setShelters] = useState<ShelterItem[]>([]);
   const [assignments, setAssignments] = useState<AssignmentResult[]>([]);
@@ -95,6 +99,24 @@ export function ResourceBoard() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (!latestPlan) return;
+    setAssignments(latestPlan.assignments || []);
+    setConflicts(latestPlan.conflicts || []);
+    setUnassignedTargets(latestPlan.unassigned_targets || []);
+    setCandidateCount(latestPlan.candidate_count || 0);
+    setHasOptimization(true);
+  }, [latestPlan]);
+
+  useEffect(() => {
+    if (!latestPlan) return;
+    setAssignments(latestPlan.assignments || []);
+    setConflicts(latestPlan.conflicts || []);
+    setUnassignedTargets(latestPlan.unassigned_targets || []);
+    setCandidateCount(latestPlan.candidate_count || 0);
+    setHasOptimization(true);
+  }, [latestPlan]);
 
   const handleRunOptimization = async (useFallback = false) => {
     try {
