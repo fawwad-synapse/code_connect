@@ -6,6 +6,7 @@ from sqlalchemy import text
 from app.db.session import get_db
 from app.services.notifier import Notifier
 from app.api.v1.ws import ws_manager
+from app.core.config import settings
 
 router = APIRouter()
 
@@ -53,6 +54,7 @@ async def run_simulation_scenario(
             "depth_m": 2.2,
             "eta_hours": 1.0,
             "alerts_dispatched": sent,
+            "alerts_simulated": not (settings.TELEGRAM_BOT_TOKEN and settings.WHATSAPP_TOKEN and settings.WHATSAPP_PHONE_NUMBER_ID),
             "message": "Water levels advanced by +3h. Critical flood alert broadcasted.",
         })
 
@@ -60,7 +62,8 @@ async def run_simulation_scenario(
             "scenario": "advance_forecast_3h",
             "status": "triggered",
             "alerts_sent": sent,
-            "message": "Forecast advanced +3h. Flash flood depth escalated; multi-channel alerts dispatched.",
+            "alerts_simulated": not (settings.TELEGRAM_BOT_TOKEN and settings.WHATSAPP_TOKEN and settings.WHATSAPP_PHONE_NUMBER_ID),
+            "message": "Simulated alert (no real SMS sent)" if not (settings.TELEGRAM_BOT_TOKEN and settings.WHATSAPP_TOKEN and settings.WHATSAPP_PHONE_NUMBER_ID) else "Forecast advanced +3h. Alerts sent through configured channels.",
         }
 
     elif scenario == "inject_duplicates":
@@ -131,6 +134,7 @@ async def run_simulation_scenario(
         # Pits a dialysis patient against a 10-person stranded family for 1 available boat
         return {
             "scenario": "resource_conflict",
+            "simulated": True,
             "status": "analyzed",
             "chosen_allocation": {
                 "resource_name": "Rescue Boat Alpha (Zodiac)",

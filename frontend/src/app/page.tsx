@@ -87,6 +87,9 @@ export default function OperationsCenterPage() {
           if (eventType === "NEW_REPORT") {
             toast.info(`New incident reported: ${payload.data?.address || "Karachi"}`);
             fetchDashboardData();
+          } else if (eventType === "FLOOD_ALERT" && payload.data?.alerts_simulated) {
+            toast.warning("Simulated alert (no real SMS sent)");
+            fetchDashboardData();
           } else if (
             ["FLOOD_ALERT", "PRIORITY_UPDATE", "SILENT_ZONE_TRIGGER", "ASSIGNMENT_CHANGE", "ASSIGNMENT_OVERRIDE"].includes(eventType)
           ) {

@@ -57,6 +57,9 @@ export function Navbar() {
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/30 font-semibold uppercase tracking-wider">
               Karachi Flood EOC
             </span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-200 border border-amber-500/40 font-semibold">
+              Synthetic demo data
+            </span>
           </div>
           <p className="text-[11px] text-slate-400">Explainable Disaster Prioritization & Coordination</p>
         </div>

@@ -21,7 +21,12 @@ export function SimulatorToolbar({ onScenarioRun }: Props) {
       setActiveScenario(scenario);
       toast.info(`Executing demo trigger: ${label}...`);
       const res = await api.runScenario(scenario);
-      toast.success(`Scenario completed: ${res.message || "Updated"}`);
+      const successMessage = res.simulated
+        ? "Simulated scenario: resource conflict example"
+        : res.alerts_simulated
+        ? "Simulated alert (no real SMS sent)"
+        : `Scenario completed: ${res.message || "Updated"}`;
+      toast.success(successMessage);
       if (onScenarioRun) {
         onScenarioRun(scenario, res);
       }
@@ -84,7 +89,7 @@ export function SimulatorToolbar({ onScenarioRun }: Props) {
         >
           {running === "resource_conflict" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Scale className="w-3.5 h-3.5 text-emerald-400" />}
           {UI_COPY.simulator.teamShortage}
-          <span className="rounded border border-amber-500/40 bg-amber-500/10 px-1 text-[9px] text-amber-200">SIMULATED</span>
+          <span className="rounded border border-amber-500/40 bg-amber-500/10 px-1 text-[9px] text-amber-200">Simulated scenario</span>
         </button>
       </div>
     </div>

@@ -66,6 +66,7 @@ async def check_hazard_forecasts_and_alert():
                         "depth_m": depth,
                         "eta_hours": eta,
                         "alerts_dispatched": sent,
+                        "alerts_simulated": not (settings.TELEGRAM_BOT_TOKEN and settings.WHATSAPP_TOKEN and settings.WHATSAPP_PHONE_NUMBER_ID),
                     })
 
             await session.commit()
