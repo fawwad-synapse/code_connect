@@ -1,12 +1,13 @@
 import uuid
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from app.db.session import get_db
 from app.services.notifier import Notifier
 from app.api.v1.ws import ws_manager
 from app.core.config import settings
+from app.services.hazards import HazardName, get_hazard_profile
 
 router = APIRouter()
 
@@ -14,6 +15,7 @@ router = APIRouter()
 @router.post("/simulate/{scenario}")
 async def run_simulation_scenario(
     scenario: str,
+    hazard: HazardName = Query("flood"),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -25,15 +27,35 @@ async def run_simulation_scenario(
     5. resource_conflict: pits a critical dialysis patient against a 10-person stranded family for 1 boat
     """
     now = datetime.now(timezone.utc)
+    profile = get_hazard_profile(hazard)
 
     if scenario == "advance_forecast_3h":
+        if hazard == "heatwave":
+            await db.execute(text("""
+                UPDATE hazard_snapshots
+                SET heat_index_c = LEAST(60, heat_index_c + 2.0),
+                    eta_hours = GREATEST(0.5, eta_hours - 3.0), fetched_at = :now
+                WHERE hazard_type = 'heatwave';
+            """), {"now": now})
+            await db.commit()
+            simulated = not (settings.TELEGRAM_BOT_TOKEN and settings.WHATSAPP_TOKEN and settings.WHATSAPP_PHONE_NUMBER_ID)
+            await ws_manager.broadcast("HEAT_ALERT", {
+                "scenario": scenario, "hazard": hazard, "alerts_simulated": simulated,
+                "message": profile["alerts"]["english"],
+            })
+            return {
+                "scenario": scenario, "hazard": hazard, "status": "triggered",
+                "alerts_sent": [], "alerts_simulated": simulated,
+                "message": "Simulated alert (no real SMS sent)" if simulated else profile["alerts"]["english"],
+            }
         # 1. Update hazard snapshots: advance time +3h, increase flood depth by +0.8m in Lyari & Korangi
         await db.execute(text("""
             UPDATE hazard_snapshots
             SET depth_m_forecast = depth_m_forecast + 0.8,
                 eta_hours = GREATEST(0.5, eta_hours - 3.0),
                 fetched_at = :now
-            WHERE zone_id IN ('zone_lyari', 'zone_korangi', 'zone_malir');
+            WHERE hazard_type IN ('flood', 'urban_flood')
+              AND zone_id IN ('zone_lyari', 'zone_korangi', 'zone_malir');
         """), {"now": now})
         await db.commit()
 
@@ -69,22 +91,28 @@ async def run_simulation_scenario(
     elif scenario == "inject_duplicates":
         # Inject 3 rapid reports in Lyari within 100 meters
         cluster_id = f"cluster_live_{uuid.uuid4().hex[:6]}"
-        reports = [
+        reports = ([
+            ("citizen", "Extreme heat in Lyari; elderly resident has no cooling or electricity.", 66.992, 24.862),
+            ("telegram", "Lyari mein shade aur pani nahi, buzurg ki tabiyat kharab hai.", 66.993, 24.861),
+            ("sms_sim", "Urgent cooling and water support needed for elderly Lyari resident.", 66.991, 24.863),
+        ] if hazard == "heatwave" else [
             ("citizen", "Water 4 feet deep inside street 5 Lyari! My elderly grandfather cannot walk.", 66.992, 24.862),
             ("telegram", "Ghar me pani aagya hai street 5 Lyari, dada chal nahi sakte, please boat bhejo!", 66.993, 24.861),
             ("sms_sim", "Lyari street 5 urgent boat needed water at waist level old man trapped.", 66.991, 24.863),
-        ]
+        ])
         import json
         for idx, (source, raw, lng, lat) in enumerate(reports):
             rid = f"rep_sim_{uuid.uuid4().hex[:8]}"
             wkt = f"SRID=4326;POINT({lng} {lat})"
-            parsed = {"urgency": "critical", "water_depth_est_m": 1.2, "medical_emergency": False, "vulnerabilities": ["elderly", "mobility_impaired"]}
+            parsed = {"hazard_type": hazard, "urgency": "critical", "medical_emergency": False, "vulnerabilities": ["elderly"]}
+            if hazard == "flood":
+                parsed["water_depth_est_m"] = 1.2
             await db.execute(text("""
-                INSERT INTO reports (id, source, raw_text, parsed, location, reported_at, received_at, confidence, cluster_id, verified)
-                VALUES (:id, :source, :raw, :parsed, ST_GeomFromEWKT(:wkt), :now, :now, 0.95, :cid, false);
+                INSERT INTO reports (id, source, raw_text, parsed, location, reported_at, received_at, confidence, cluster_id, verified, hazard_type)
+                VALUES (:id, :source, :raw, :parsed, ST_GeomFromEWKT(:wkt), :now, :now, 0.95, :cid, false, :hazard);
             """), {
                 "id": rid, "source": source, "raw": raw, "parsed": json.dumps(parsed),
-                "wkt": wkt, "now": now, "cid": cluster_id
+                "wkt": wkt, "now": now, "cid": cluster_id, "hazard": hazard
             })
 
         await db.commit()
@@ -137,6 +165,7 @@ async def run_simulation_scenario(
             use_fallback_solver=False,
             flood_level_percent=None,
             candidate_limit=100,
+            hazard=hazard,
             db=db,
         )
         return {

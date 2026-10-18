@@ -10,6 +10,7 @@ from app.agents.pipeline import report_pipeline
 from app.api.v1.ws import ws_manager
 from app.services.dedupe import find_matching_cluster
 from app.services.scoring import _config
+from app.services.hazards import HazardName, get_hazard_profile
 
 router = APIRouter()
 
@@ -64,6 +65,7 @@ def report_parsed_data(parsed: object) -> dict:
 @router.post("/reports", response_model=ReportResponse)
 async def create_report(
     report_in: ReportCreate,
+    hazard: HazardName = Query("flood"),
     x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
     db: AsyncSession = Depends(get_db),
 ):
@@ -72,6 +74,7 @@ async def create_report(
     Processes untrusted text via LangGraph pipeline and spatial deduplication.
     """
     now = datetime.now(timezone.utc)
+    get_hazard_profile(hazard)
     reported_at = report_in.reported_at or now
     if reported_at.tzinfo is None:
         reported_at = reported_at.replace(tzinfo=timezone.utc)
@@ -79,8 +82,8 @@ async def create_report(
 
     # 1. Idempotency Check (PWA offline sync safety)
     if x_idempotency_key:
-        check_q = text("SELECT id, source, raw_text, parsed, confidence, cluster_id, verified FROM reports WHERE idempotency_key = :ikey")
-        res = await db.execute(check_q, {"ikey": x_idempotency_key})
+        check_q = text("SELECT id, source, raw_text, parsed, confidence, cluster_id, verified FROM reports WHERE idempotency_key = :ikey AND hazard_type = :hazard")
+        res = await db.execute(check_q, {"ikey": x_idempotency_key, "hazard": hazard})
         existing = res.fetchone()
         if existing:
             return {
@@ -103,12 +106,12 @@ async def create_report(
         SELECT id, raw_text, ST_X(location) as lon, ST_Y(location) as lat, cluster_id,
                parsed, confidence, reported_at
         FROM reports
-        WHERE reported_at > :cutoff
+        WHERE reported_at > :cutoff AND hazard_type = :hazard
         ORDER BY reported_at DESC
         LIMIT 50;
     """)
     cutoff = duplicate_candidate_cutoff(now)
-    recents_res = await db.execute(recent_q, {"cutoff": cutoff})
+    recents_res = await db.execute(recent_q, {"cutoff": cutoff, "hazard": hazard})
     recent_reports = [
         {"id": r[0], "raw_text": r[1], "lon": r[2], "lat": r[3], "cluster_id": r[4],
          "parsed": r[5] if isinstance(r[5], dict) else {}, "confidence": r[6], "reported_at": r[7]}
@@ -174,6 +177,7 @@ async def create_report(
         evidence_weight = 0.0
 
     parsed = dict(parsed)
+    parsed["hazard_type"] = hazard
     parsed["_evidence"] = {"weight": evidence_weight, "late": reported_at < now - timedelta(hours=report_policy.get("late_after_hours", 6.0))}
     if conflict_with:
         parsed["_conflict"] = {
@@ -207,10 +211,12 @@ async def create_report(
         INSERT INTO reports (
             id, source, raw_text, parsed, location, reported_at, received_at,
             confidence, cluster_id, verified, photo_url, idempotency_key
+            , hazard_type
         ) VALUES (
             :id, :source, :raw_text, :parsed, 
             ST_GeomFromEWKT(CAST(:wkt AS text)),
             :reported_at, :received_at, :confidence, :cluster_id, :verified, :photo_url, :ikey
+            , :hazard
         );
     """)
 
@@ -228,6 +234,7 @@ async def create_report(
         "verified": (report_in.source == "volunteer"),
         "photo_url": report_in.photo_url,
         "ikey": x_idempotency_key,
+        "hazard": hazard,
     })
 
     # Count qualifying evidence at its containing zone and apply a capped nearby-household boost.
@@ -258,10 +265,10 @@ async def create_report(
     })
 
     # Reports can alter the order; refresh an existing plan so dispatch stays in sync.
-    has_assignments = await db.execute(text("SELECT EXISTS(SELECT 1 FROM assignments)"))
+    has_assignments = await db.execute(text("SELECT EXISTS(SELECT 1 FROM assignments WHERE hazard_type = :hazard)"), {"hazard": hazard})
     if has_assignments.scalar():
         from app.api.v1.resources import optimize_assignments
-        await optimize_assignments(use_fallback_solver=False, db=db)
+        await optimize_assignments(use_fallback_solver=False, hazard=hazard, db=db)
 
     # 6. Broadcast Real-time WebSocket Event
     await ws_manager.broadcast("NEW_REPORT", {
@@ -294,6 +301,7 @@ async def create_report(
 @router.get("/reports", response_model=ReportListResponse)
 async def list_reports(
     cluster_id: Optional[str] = Query(None),
+    hazard: HazardName = Query("flood"),
     limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ):
@@ -305,11 +313,13 @@ async def list_reports(
             COUNT(*) OVER (PARTITION BY cluster_id) > 1 AS is_duplicate
         FROM reports
         WHERE (CAST(:cluster_id AS VARCHAR) IS NULL OR cluster_id = CAST(:cluster_id AS VARCHAR))
+          AND hazard_type = :hazard
         ORDER BY reported_at DESC
         LIMIT :limit;
     """)
 
-    res = await db.execute(query, {"limit": limit, "cluster_id": cluster_id})
+    get_hazard_profile(hazard)
+    res = await db.execute(query, {"limit": limit, "cluster_id": cluster_id, "hazard": hazard})
     rows = res.fetchall()
 
     reports = []

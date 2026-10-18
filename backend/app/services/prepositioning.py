@@ -1,5 +1,6 @@
 from typing import List, Dict, Any
 from pydantic import BaseModel
+from app.services.hazards import HazardName, get_hazard_profile
 
 
 class PrepositioningAction(BaseModel):
@@ -82,4 +83,30 @@ def generate_prepositioning_timeline(
             )
         )
 
+    return timeline
+
+
+def generate_heatwave_timeline(
+    zones: List[Dict[str, Any]], households: List[Dict[str, Any]],
+) -> List[PrepositioningAction]:
+    """Build the configured four-step heat response timeline for each zone."""
+    profile = get_hazard_profile("heatwave")
+    timeline: List[PrepositioningAction] = []
+    for zone in zones:
+        zone_households = [h for h in households if h.get("zone_id") == zone["id"]]
+        at_risk = sum(
+            1 for h in zone_households
+            if not h.get("has_cooling", True) or h.get("outdoor_worker") or h.get("chronic_medical_need")
+        )
+        for step in profile["prepositioning_timeline"]:
+            assets = [item["display_name"] for item in profile["resource_types"].values()][:3]
+            timeline.append(PrepositioningAction(
+                time_window=step["phase"], phase=step["phase"],
+                zone_id=zone["id"], zone_name=zone["name"],
+                suggested_action=f"{step['text']} Zone: {zone['name']}.",
+                target_count=at_risk,
+                recommended_assets=assets,
+                rationale=(f"Forecast heat index is {zone.get('heat_index_c', 42):.1f} C "
+                           f"with impact expected in {zone.get('hazard_eta', 4):.1f} hours."),
+            ))
     return timeline

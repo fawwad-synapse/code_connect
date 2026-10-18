@@ -1,9 +1,10 @@
 import json
 from typing import List, Dict, Any
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from app.db.session import get_db
+from app.services.hazards import HazardName, get_hazard_profile
 
 router = APIRouter()
 
@@ -23,7 +24,10 @@ async def get_waterways(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/zones")
-async def get_zones(db: AsyncSession = Depends(get_db)):
+async def get_zones(
+    hazard: HazardName = Query("flood"),
+    db: AsyncSession = Depends(get_db),
+):
     """
     Returns all administrative zones with GeoJSON geometry polygons,
     elevation, and latest hazard snapshots.
@@ -39,20 +43,23 @@ async def get_zones(db: AsyncSession = Depends(get_db)):
             z.is_silent_zone,
             h.hazard_type,
             h.depth_m_forecast,
+            h.heat_index_c,
             h.eta_hours,
             h.is_fallback
         FROM zones z
         LEFT JOIN LATERAL (
-            SELECT hazard_type, depth_m_forecast, eta_hours, is_fallback
+            SELECT hazard_type, depth_m_forecast, heat_index_c, eta_hours, is_fallback
             FROM hazard_snapshots
             WHERE zone_id = z.id
+              AND ((:hazard = 'flood' AND hazard_type IN ('flood', 'urban_flood')) OR hazard_type = :hazard)
             ORDER BY fetched_at DESC
             LIMIT 1
         ) h ON true
         ORDER BY z.name ASC;
     """)
 
-    res = await db.execute(query)
+    get_hazard_profile(hazard)
+    res = await db.execute(query, {"hazard": hazard})
     rows = res.fetchall()
 
     zones = []
@@ -68,9 +75,10 @@ async def get_zones(db: AsyncSession = Depends(get_db)):
             "hazard_forecast": {
                 "hazard_type": r[7] or "flood",
                 "depth_m_forecast": r[8] or 0.0,
-                "eta_hours": r[9] or 12.0,
-                "is_fallback": r[10] or False,
+                "heat_index_c": r[9],
+                "eta_hours": r[10] or 12.0,
+                "is_fallback": r[11] or False,
             }
         })
 
-    return {"zones": zones, "count": len(zones)}
+    return {"hazard": hazard, "zones": zones, "count": len(zones)}

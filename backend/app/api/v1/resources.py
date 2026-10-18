@@ -10,7 +10,8 @@ from pydantic import BaseModel, Field
 
 from app.db.session import get_db
 from app.services.routing import solve_resource_assignments, solve_greedy_assignment
-from app.services.scoring import calculate_priority_score
+from app.services.scoring import calculate_priority_score, calculate_heatwave_priority_score
+from app.services.hazards import HazardName, get_hazard_profile
 from app.api.v1.ws import ws_manager
 from app.api.v1.priorities import get_priorities as priorities_router_endpoint
 
@@ -23,7 +24,7 @@ class OverridePayload(BaseModel):
     new_resource_id: Optional[str] = None
 
 
-def resource_board_response(opt_res: Any, targets: List[Dict[str, Any]], resources: List[Dict[str, Any]]) -> Dict[str, Any]:
+def resource_board_response(opt_res: Any, targets: List[Dict[str, Any]], resources: List[Dict[str, Any]], hazard: HazardName = "flood") -> Dict[str, Any]:
     """Translate solver output into the contract consumed by ResourceBoard."""
     targets_by_id = {target["id"]: target for target in targets}
     resources_by_id = {resource["id"]: resource for resource in resources}
@@ -81,6 +82,7 @@ def resource_board_response(opt_res: Any, targets: List[Dict[str, Any]], resourc
         })
 
     return {
+        "hazard": hazard,
         "assignments": assignments,
         "unassigned_targets": opt_res.unassigned_targets,
         "candidate_count": len(targets),
@@ -97,6 +99,8 @@ def resource_board_response(opt_res: Any, targets: List[Dict[str, Any]], resourc
 @router.get("/resources")
 async def get_resources(
     flood_level_percent: Optional[float] = Query(None, ge=0, le=100),
+    heat_index_c: Optional[float] = Query(None, ge=30, le=60),
+    hazard: HazardName = Query("flood"),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -105,17 +109,18 @@ async def get_resources(
     """
     res_q = text("""
         SELECT id, name, type, capacity, ST_X(location) as lng, ST_Y(location) as lat, status, medical_capable
-        FROM resources
+        FROM resources WHERE hazard_type = :hazard
         ORDER BY name ASC;
     """)
     she_q = text("""
         SELECT id, name, ST_X(location) as lng, ST_Y(location) as lat, capacity, current_occupancy, accessible
-        FROM shelters
+        FROM shelters WHERE hazard_type = :hazard
         ORDER BY name ASC;
     """)
 
-    res_rows = (await db.execute(res_q)).fetchall()
-    she_rows = (await db.execute(she_q)).fetchall()
+    get_hazard_profile(hazard)
+    res_rows = (await db.execute(res_q, {"hazard": hazard})).fetchall()
+    she_rows = (await db.execute(she_q, {"hazard": hazard})).fetchall()
 
     resources = [
         {
@@ -149,7 +154,8 @@ async def get_resources(
         result = await priorities_router_endpoint(
             zone_id=None, medical_only=False, alone_only=False, low_confidence_only=False,
             min_score=0.0, page=page, page_size=200,
-            flood_level_percent=flood_level_percent, db=db,
+            flood_level_percent=flood_level_percent, heat_index_c=heat_index_c,
+            hazard=hazard, db=db,
         )
         household_pages.extend(result["items"])
 
@@ -197,9 +203,11 @@ async def get_resources(
     blocked_roads = [
         {"id": "blk_01", "name": "Mauripur Road Underpass", "status": "impassable", "depth_m": 1.2, "coords": [[66.9750, 24.8560], [66.9850, 24.8580]]},
         {"id": "blk_02", "name": "Korangi Causeway", "status": "impassable", "depth_m": 1.8, "coords": [[67.0980, 24.8210], [67.1060, 24.8230]]},
-    ]
+    ] if hazard == "flood" else []
 
     return {
+        "hazard": hazard,
+        "shelter_type": get_hazard_profile(hazard)["shelter_type_name"],
         "resources": resources,
         "shelters": shelters,
         "blocked_roads": blocked_roads,
@@ -207,7 +215,10 @@ async def get_resources(
 
 
 @router.get("/assignments")
-async def list_assignments(db: AsyncSession = Depends(get_db)):
+async def list_assignments(
+    hazard: HazardName = Query("flood"),
+    db: AsyncSession = Depends(get_db),
+):
     result = await db.execute(text("""
         SELECT a.id, a.resource_id, r.name, r.type,
                ST_X(r.location) AS resource_lng, ST_Y(r.location) AS resource_lat,
@@ -216,9 +227,10 @@ async def list_assignments(db: AsyncSession = Depends(get_db)):
         FROM assignments a
         JOIN resources r ON r.id = a.resource_id
         JOIN households h ON a.target_type = 'household' AND h.id = a.target_id
-        WHERE a.created_at = (SELECT MAX(created_at) FROM assignments)
+        WHERE a.hazard_type = :hazard
+          AND a.created_at = (SELECT MAX(created_at) FROM assignments WHERE hazard_type = :hazard)
         ORDER BY a.id
-    """))
+    """), {"hazard": hazard})
     rows = result.fetchall()
     assignments = [{
         "id": row[0], "resource_id": row[1], "resource_name": row[2], "resource_type": row[3],
@@ -226,13 +238,15 @@ async def list_assignments(db: AsyncSession = Depends(get_db)):
         "target_location": {"lng": row[7], "lat": row[8]}, "transit_time_min": row[9],
         "reason": row[10], "confidence": row[11],
     } for row in rows]
-    return {"assignments": assignments, "assigned_count": len(assignments)}
+    return {"hazard": hazard, "assignments": assignments, "assigned_count": len(assignments)}
 
 
 @router.post("/assignments/optimize")
 async def optimize_assignments(
     use_fallback_solver: bool = False,
     flood_level_percent: Optional[float] = None,
+    heat_index_c: Optional[float] = None,
+    hazard: HazardName = "flood",
     candidate_limit: int = 100,
     db: AsyncSession = Depends(get_db),
 ):
@@ -243,11 +257,14 @@ async def optimize_assignments(
     """
     if flood_level_percent is not None and not 0 <= flood_level_percent <= 100:
         raise HTTPException(status_code=422, detail="flood_level_percent must be between 0 and 100")
+    if heat_index_c is not None and not 30 <= heat_index_c <= 60:
+        raise HTTPException(status_code=422, detail="heat_index_c must be between 30 and 60")
+    get_hazard_profile(hazard)
     if not 1 <= candidate_limit <= 600:
         raise HTTPException(status_code=422, detail="candidate_limit must be between 1 and 600")
     # 1. Fetch available resources
-    r_query = text("SELECT id, name, type, capacity, ST_X(location) as lon, ST_Y(location) as lat, status, medical_capable FROM resources WHERE status = 'available';")
-    r_rows = (await db.execute(r_query)).fetchall()
+    r_query = text("SELECT id, name, type, capacity, ST_X(location) as lon, ST_Y(location) as lat, status, medical_capable FROM resources WHERE status = 'available' AND hazard_type = :hazard;")
+    r_rows = (await db.execute(r_query, {"hazard": hazard})).fetchall()
     resources = [
         {"id": r[0], "name": r[1], "type": r[2], "capacity": r[3], "lon": r[4], "lat": r[5], "status": r[6], "medical_capable": r[7]}
         for r in r_rows
@@ -263,16 +280,20 @@ async def optimize_assignments(
             z.elevation_m, z.deprivation_index, z.is_silent_zone,
             COALESCE(hz.depth_m_forecast, 1.0) AS depth_m_forecast,
             COALESCE(hz.eta_hours, 4.0) AS eta_hours,
-            COALESCE(hz.is_fallback, false) AS is_fallback
+            COALESCE(hz.is_fallback, false) AS is_fallback,
+            h.has_cooling, h.reliable_electricity, h.reliable_water, h.outdoor_worker,
+            COALESCE(hz.heat_index_c, 42.0) AS heat_index_c
         FROM households h
         JOIN zones z ON h.zone_id = z.id
         LEFT JOIN LATERAL (
-            SELECT depth_m_forecast, eta_hours, is_fallback FROM hazard_snapshots
-            WHERE zone_id = h.zone_id ORDER BY fetched_at DESC LIMIT 1
+            SELECT depth_m_forecast, heat_index_c, eta_hours, is_fallback FROM hazard_snapshots
+            WHERE zone_id = h.zone_id
+              AND ((:hazard = 'flood' AND hazard_type IN ('flood', 'urban_flood')) OR hazard_type = :hazard)
+            ORDER BY fetched_at DESC LIMIT 1
         ) hz ON true
         ORDER BY h.id ASC;
     """)
-    h_rows = (await db.execute(h_query)).mappings().all()
+    h_rows = (await db.execute(h_query, {"hazard": hazard})).mappings().all()
 
     targets = []
     for h in h_rows:
@@ -281,17 +302,29 @@ async def optimize_assignments(
         if flood_level_percent is not None:
             from app.services.scoring import _config
             forecast_depth = _config.get("what_if", {}).get("flood_level_max_depth_m", 2.5) * flood_level_percent / 100.0
-        score = calculate_priority_score(
-            age=h["age"], lives_alone=h["lives_alone"], mobility_impaired=h["mobility_impaired"],
-            chronic_medical_need=h["chronic_medical_need"], housing_type=h["housing_type"],
-            floor_level=h["floor_level"], zone_deprivation=h["deprivation_index"],
-            has_smartphone=h["has_smartphone"], signal_quality=h["signal_quality"],
-            alert_acknowledged=h["alert_acknowledged"], forecast_depth_m=forecast_depth,
-            elevation_m=h["elevation_m"], eta_hours=h["eta_hours"], is_silent_zone=h["is_silent_zone"],
-            is_fallback_hazard=h["is_fallback"], missing_fields=missing,
-            water_proximity_m=h["water_proximity_m"],
-            report_evidence=h["report_evidence"],
-        )
+        if hazard == "heatwave":
+            score = calculate_heatwave_priority_score(
+                age=h["age"], lives_alone=h["lives_alone"], chronic_medical_need=h["chronic_medical_need"],
+                housing_type=h["housing_type"], floor_level=h["floor_level"], has_cooling=h["has_cooling"],
+                reliable_electricity=h["reliable_electricity"], reliable_water=h["reliable_water"],
+                outdoor_worker=h["outdoor_worker"], zone_deprivation=h["deprivation_index"],
+                has_smartphone=h["has_smartphone"], signal_quality=h["signal_quality"],
+                alert_acknowledged=h["alert_acknowledged"], heat_index_c=heat_index_c or h["heat_index_c"],
+                eta_hours=h["eta_hours"], is_silent_zone=h["is_silent_zone"],
+                is_fallback_hazard=h["is_fallback"], missing_fields=missing,
+                report_evidence=h["report_evidence"],
+            )
+        else:
+            score = calculate_priority_score(
+                age=h["age"], lives_alone=h["lives_alone"], mobility_impaired=h["mobility_impaired"],
+                chronic_medical_need=h["chronic_medical_need"], housing_type=h["housing_type"],
+                floor_level=h["floor_level"], zone_deprivation=h["deprivation_index"],
+                has_smartphone=h["has_smartphone"], signal_quality=h["signal_quality"],
+                alert_acknowledged=h["alert_acknowledged"], forecast_depth_m=forecast_depth,
+                elevation_m=h["elevation_m"], eta_hours=h["eta_hours"], is_silent_zone=h["is_silent_zone"],
+                is_fallback_hazard=h["is_fallback"], missing_fields=missing,
+                water_proximity_m=h["water_proximity_m"], report_evidence=h["report_evidence"],
+            )
         targets.append({
             "id": h["id"], "zone_id": h["zone_id"], "zone_name": h["zone_name"],
             "lon": h["lng"], "lat": h["lat"], "priority_score": score.priority_score,
@@ -311,12 +344,14 @@ async def optimize_assignments(
     # 4. Save assignments to database
     now = datetime.now(timezone.utc)
     for a in opt_res.assignments:
+        a.assignment_id = f"asg_{hazard}_{a.resource_id}_{a.target_id}"
         ins_q = text("""
             INSERT INTO assignments (
-                id, resource_id, target_type, target_id, rank, route, eta_min, reason, confidence, created_at
+                id, resource_id, target_type, target_id, rank, route, eta_min, reason, confidence, created_at, hazard_type
             ) VALUES (
-                :id, :res_id, :ttype, :tid, 1, :route, :eta, :reason, :conf, :created_at
-            ) ON CONFLICT (id) DO UPDATE SET eta_min = :eta, reason = :reason, created_at = EXCLUDED.created_at;
+                :id, :res_id, :ttype, :tid, 1, :route, :eta, :reason, :conf, :created_at, :hazard
+            ) ON CONFLICT (id) DO UPDATE SET resource_id = :res_id, eta_min = :eta, reason = :reason,
+                created_at = EXCLUDED.created_at, hazard_type = :hazard;
         """)
         await db.execute(ins_q, {
             "id": a.assignment_id,
@@ -328,6 +363,7 @@ async def optimize_assignments(
             "reason": a.reason,
             "conf": a.confidence,
             "created_at": now,
+            "hazard": hazard,
         })
 
     await db.commit()
@@ -339,7 +375,7 @@ async def optimize_assignments(
         "score_covered": opt_res.total_score_covered,
     })
 
-    return resource_board_response(opt_res, targets, resources)
+    return resource_board_response(opt_res, targets, resources, hazard)
 
 
 @router.patch("/assignments/{assignment_id}/override")
@@ -355,13 +391,13 @@ async def override_assignment(
     """
     now = datetime.now(timezone.utc)
 
-    row = (await db.execute(text("SELECT id, resource_id, target_type, target_id FROM assignments WHERE id = :aid"), {"aid": assignment_id})).fetchone()
+    row = (await db.execute(text("SELECT id, resource_id, target_type, target_id, hazard_type FROM assignments WHERE id = :aid"), {"aid": assignment_id})).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Assignment not found")
-    original_resource_id, target_type, target_id = row[1], row[2], row[3]
+    original_resource_id, target_type, target_id, assignment_hazard = row[1], row[2], row[3], row[4]
 
     if payload.new_resource_id:
-        resource = (await db.execute(text("SELECT capacity, medical_capable, status FROM resources WHERE id = :rid"), {"rid": payload.new_resource_id})).fetchone()
+        resource = (await db.execute(text("SELECT capacity, medical_capable, status FROM resources WHERE id = :rid AND hazard_type = :hazard"), {"rid": payload.new_resource_id, "hazard": assignment_hazard})).fetchone()
         if not resource:
             raise HTTPException(status_code=404, detail="Replacement resource not found")
         if resource[2] != "available":
@@ -375,8 +411,9 @@ async def override_assignment(
             SELECT COALESCE(SUM(COALESCE(h.occupants, 1)), 0)
             FROM assignments a LEFT JOIN households h ON a.target_type = 'household' AND h.id = a.target_id
             WHERE a.resource_id = :rid AND a.id <> :aid
-              AND a.created_at = (SELECT MAX(created_at) FROM assignments)
-        """), {"rid": payload.new_resource_id, "aid": assignment_id})).scalar_one()
+              AND a.hazard_type = :hazard
+              AND a.created_at = (SELECT MAX(created_at) FROM assignments WHERE hazard_type = :hazard)
+        """), {"rid": payload.new_resource_id, "aid": assignment_id, "hazard": assignment_hazard})).scalar_one()
         if current_load + household[0] > resource[0]:
             raise HTTPException(status_code=409, detail=f"Replacement resource capacity exceeded: {current_load} assigned, {household[0]} needed, {resource[0]} capacity")
 

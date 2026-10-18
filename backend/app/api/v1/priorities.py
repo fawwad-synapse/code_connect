@@ -4,8 +4,9 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from app.db.session import get_db
-from app.services.scoring import calculate_priority_score
+from app.services.scoring import calculate_priority_score, calculate_heatwave_priority_score
 from app.services.explain import generate_explanation, build_deterministic_explanation
+from app.services.hazards import HazardName, get_hazard_profile
 
 router = APIRouter()
 
@@ -20,6 +21,8 @@ async def get_priorities(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     flood_level_percent: Optional[float] = Query(None, ge=0, le=100),
+    heat_index_c: Optional[float] = Query(None, ge=30, le=60),
+    hazard: HazardName = Query("flood"),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -51,20 +54,24 @@ async def get_priorities(
             z.is_silent_zone,
             COALESCE(hz.depth_m_forecast, 1.0) as depth_m_forecast,
             COALESCE(hz.eta_hours, 4.0) as eta_hours,
-            COALESCE(hz.is_fallback, false) as is_fallback
+            COALESCE(hz.is_fallback, false) as is_fallback,
+            h.has_cooling, h.reliable_electricity, h.reliable_water, h.outdoor_worker,
+            COALESCE(hz.heat_index_c, 42.0) as heat_index_c
         FROM households h
         JOIN zones z ON h.zone_id = z.id
         LEFT JOIN LATERAL (
-            SELECT depth_m_forecast, eta_hours, is_fallback
+            SELECT depth_m_forecast, heat_index_c, eta_hours, is_fallback
             FROM hazard_snapshots
             WHERE zone_id = h.zone_id
+              AND ((:hazard = 'flood' AND hazard_type IN ('flood', 'urban_flood')) OR hazard_type = :hazard)
             ORDER BY fetched_at DESC
             LIMIT 1
         ) hz ON true
         ORDER BY h.id ASC;
     """)
 
-    res = await db.execute(query)
+    get_hazard_profile(hazard)
+    res = await db.execute(query, {"hazard": hazard})
     rows = res.fetchall()
 
     scored_items = []
@@ -92,32 +99,37 @@ async def get_priorities(
         depth = r[21]
         eta = r[22]
         fallback = r[23]
-        if flood_level_percent is not None:
+        has_cooling, reliable_electricity, reliable_water, outdoor_worker = r[24:28]
+        forecast_heat_index = r[28]
+        if hazard == "flood" and flood_level_percent is not None:
             from app.services.scoring import _config
             max_depth = _config.get("what_if", {}).get("flood_level_max_depth_m", 2.5)
             depth = max_depth * flood_level_percent / 100.0
+        if hazard == "heatwave" and heat_index_c is not None:
+            forecast_heat_index = heat_index_c
 
         # Apply Priority Scoring Engine
-        score_res = calculate_priority_score(
-            age=age,
-            lives_alone=alone,
-            mobility_impaired=mobility,
-            chronic_medical_need=medical,
-            housing_type=housing,
-            floor_level=floor,
-            zone_deprivation=depriv,
-            has_smartphone=smart,
-            signal_quality=sig,
-            alert_acknowledged=ack,
-            forecast_depth_m=depth,
-            elevation_m=elev,
-            eta_hours=eta,
-            is_silent_zone=silent,
-            is_fallback_hazard=fallback,
-            missing_fields=missing,
-            water_proximity_m=water_proximity_m,
-            report_evidence=report_evidence,
-        )
+        if hazard == "heatwave":
+            score_res = calculate_heatwave_priority_score(
+                age=age, lives_alone=alone, chronic_medical_need=medical,
+                housing_type=housing, floor_level=floor, has_cooling=has_cooling,
+                reliable_electricity=reliable_electricity, reliable_water=reliable_water,
+                outdoor_worker=outdoor_worker, zone_deprivation=depriv,
+                has_smartphone=smart, signal_quality=sig, alert_acknowledged=ack,
+                heat_index_c=forecast_heat_index, eta_hours=eta,
+                is_silent_zone=silent, is_fallback_hazard=fallback,
+                missing_fields=missing, report_evidence=report_evidence,
+            )
+        else:
+            score_res = calculate_priority_score(
+                age=age, lives_alone=alone, mobility_impaired=mobility,
+                chronic_medical_need=medical, housing_type=housing, floor_level=floor,
+                zone_deprivation=depriv, has_smartphone=smart, signal_quality=sig,
+                alert_acknowledged=ack, forecast_depth_m=depth, elevation_m=elev,
+                eta_hours=eta, is_silent_zone=silent, is_fallback_hazard=fallback,
+                missing_fields=missing, water_proximity_m=water_proximity_m,
+                report_evidence=report_evidence,
+            )
 
         item = {
             "id": hid,
@@ -148,7 +160,13 @@ async def get_priorities(
             "factor_breakdown": [f.model_dump() for f in score_res.factor_breakdown],
             "summary_reason": score_res.summary_reason,
             "depth_m_forecast": depth,
+            "heat_index_c": forecast_heat_index if hazard == "heatwave" else None,
+            "has_cooling": has_cooling,
+            "reliable_electricity": reliable_electricity,
+            "reliable_water": reliable_water,
+            "outdoor_worker": outdoor_worker,
             "eta_hours": eta,
+            "hazard": hazard,
         }
 
         # Filtering
@@ -174,6 +192,7 @@ async def get_priorities(
     paged = scored_items[start_idx : start_idx + page_size]
 
     return {
+        "hazard": hazard,
         "total": total,
         "page": page,
         "page_size": page_size,
@@ -185,6 +204,8 @@ async def get_priorities(
 async def get_priority_explanation(
     household_id: str,
     flood_level_percent: Optional[float] = Query(None, ge=0, le=100),
+    heat_index_c: Optional[float] = Query(None, ge=30, le=60),
+    hazard: HazardName = Query("flood"),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -201,48 +222,52 @@ async def get_priority_explanation(
             h.water_proximity_m, h.report_evidence,
             COALESCE(hz.depth_m_forecast, 1.0) as depth_m_forecast,
             COALESCE(hz.eta_hours, 4.0) as eta_hours,
-            COALESCE(hz.is_fallback, false) as is_fallback
+            COALESCE(hz.is_fallback, false) as is_fallback,
+            h.has_cooling, h.reliable_electricity, h.reliable_water, h.outdoor_worker,
+            COALESCE(hz.heat_index_c, 42.0) as heat_index_c
         FROM households h
         JOIN zones z ON h.zone_id = z.id
         LEFT JOIN LATERAL (
-            SELECT depth_m_forecast, eta_hours, is_fallback
+            SELECT depth_m_forecast, heat_index_c, eta_hours, is_fallback
             FROM hazard_snapshots WHERE zone_id = h.zone_id
+              AND ((:hazard = 'flood' AND hazard_type IN ('flood', 'urban_flood')) OR hazard_type = :hazard)
             ORDER BY fetched_at DESC LIMIT 1
         ) hz ON true
         WHERE h.id = :hid;
     """)
 
-    res = await db.execute(query, {"hid": household_id})
+    get_hazard_profile(hazard)
+    res = await db.execute(query, {"hid": household_id, "hazard": hazard})
     row = res.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Household priority record not found")
 
     missing = row[12].get("fields", []) if isinstance(row[12], dict) else []
     depth = row[18]
-    if flood_level_percent is not None:
+    if hazard == "flood" and flood_level_percent is not None:
         from app.services.scoring import _config
         max_depth = _config.get("what_if", {}).get("flood_level_max_depth_m", 2.5)
         depth = max_depth * flood_level_percent / 100.0
-    score_res = calculate_priority_score(
-        age=row[3],
-        lives_alone=row[4],
-        mobility_impaired=row[5],
-        chronic_medical_need=row[6],
-        housing_type=row[7],
-        floor_level=row[8],
-        zone_deprivation=row[14],
-        has_smartphone=row[9],
-        signal_quality=row[10],
-        alert_acknowledged=row[11],
-        forecast_depth_m=depth,
-        elevation_m=row[13],
-        eta_hours=row[19],
-        is_silent_zone=row[15],
-        is_fallback_hazard=row[20],
-        missing_fields=missing,
-        water_proximity_m=row[16],
-        report_evidence=row[17],
-    )
+    forecast_heat_index = heat_index_c if heat_index_c is not None else row[25]
+    if hazard == "heatwave":
+        score_res = calculate_heatwave_priority_score(
+            age=row[3], lives_alone=row[4], chronic_medical_need=row[6],
+            housing_type=row[7], floor_level=row[8], zone_deprivation=row[14],
+            has_smartphone=row[9], signal_quality=row[10], alert_acknowledged=row[11],
+            has_cooling=row[21], reliable_electricity=row[22], reliable_water=row[23],
+            outdoor_worker=row[24], heat_index_c=forecast_heat_index, eta_hours=row[19],
+            is_silent_zone=row[15], is_fallback_hazard=row[20], missing_fields=missing,
+            report_evidence=row[17],
+        )
+    else:
+        score_res = calculate_priority_score(
+            age=row[3], lives_alone=row[4], mobility_impaired=row[5],
+            chronic_medical_need=row[6], housing_type=row[7], floor_level=row[8],
+            zone_deprivation=row[14], has_smartphone=row[9], signal_quality=row[10],
+            alert_acknowledged=row[11], forecast_depth_m=depth, elevation_m=row[13],
+            eta_hours=row[19], is_silent_zone=row[15], is_fallback_hazard=row[20],
+            missing_fields=missing, water_proximity_m=row[16], report_evidence=row[17],
+        )
 
     context = {
         "zone_name": row[2],
@@ -252,12 +277,15 @@ async def get_priority_explanation(
         "housing_type": row[7],
         "forecast_depth_m": depth,
         "eta_hours": row[19],
+        "hazard": hazard,
+        "heat_index_c": forecast_heat_index,
     }
 
-    explanation_text = await generate_explanation(score_res, context)
+    explanation_text = score_res.summary_reason if hazard == "heatwave" else await generate_explanation(score_res, context)
 
     return {
         "household_id": household_id,
+        "hazard": hazard,
         "priority_score": score_res.priority_score,
         "confidence_level": score_res.confidence_level,
         "explanation": explanation_text,
