@@ -2,6 +2,7 @@ import os
 import yaml
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
+from app.services.hazards import get_hazard_profile
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "core", "scoring_config.yaml")
 
@@ -220,6 +221,151 @@ def compute_water_proximity_risk(water_proximity_m: Optional[float]) -> float:
     if distance <= 500:
         return round(0.55 - ((distance - 300) / 200) * 0.55, 3)
     return 0.0
+
+
+def compute_heat_exposure(heat_index_c: float) -> float:
+    """Normalise apparent temperature: 35°C is low and 50°C reaches maximum exposure."""
+    return round(min(1.0, max(0.0, (heat_index_c - 35.0) / 15.0)), 3)
+
+
+def calculate_heatwave_priority_score(
+    age: Optional[int] = None,
+    lives_alone: Optional[bool] = None,
+    chronic_medical_need: Optional[bool] = None,
+    housing_type: Optional[str] = "informal",
+    floor_level: Optional[int] = 0,
+    has_cooling: Optional[bool] = False,
+    reliable_electricity: Optional[bool] = True,
+    reliable_water: Optional[bool] = True,
+    outdoor_worker: Optional[bool] = False,
+    zone_deprivation: float = 0.5,
+    has_smartphone: Optional[bool] = True,
+    signal_quality: Optional[float] = 0.8,
+    alert_acknowledged: Optional[bool] = False,
+    heat_index_c: float = 42.0,
+    eta_hours: float = 4.0,
+    is_silent_zone: bool = False,
+    is_fallback_hazard: bool = False,
+    report_confidence: float = 1.0,
+    missing_fields: Optional[List[str]] = None,
+    report_evidence: float = 0.0,
+) -> PriorityScoreResult:
+    """Calculate heatwave priority while leaving the flood formula unchanged."""
+    missing = missing_fields or []
+    assumed: List[str] = []
+
+    if age is None or "age" in missing:
+        age_value = 80
+        assumed.append("age (assumed very old 80)")
+    else:
+        age_value = age
+    if age_value >= 75 or age_value <= 5:
+        age_factor = 1.0
+    elif age_value >= 65 or age_value <= 12:
+        age_factor = 0.75
+    else:
+        age_factor = 0.25
+
+    def risk_flag(value: Optional[bool], field: str, risky_when: bool) -> float:
+        if value is None or field in missing:
+            assumed.append(f"{field} (conservative assumption)")
+            return 1.0
+        return 1.0 if value is risky_when else 0.0
+
+    alone_factor = risk_flag(lives_alone, "lives_alone", True)
+    medical_factor = risk_flag(chronic_medical_need, "chronic_medical_need", True)
+    no_cooling = risk_flag(has_cooling, "has_cooling", False)
+    no_electricity = risk_flag(reliable_electricity, "reliable_electricity", False)
+    no_water = risk_flag(reliable_water, "reliable_water", False)
+    outdoor_factor = risk_flag(outdoor_worker, "outdoor_worker", True)
+
+    if housing_type is None or "housing_type" in missing:
+        housing_factor = 1.0
+        assumed.append("housing_type (assumed heat-sensitive)")
+    else:
+        housing_factor = {
+            "tin_roof": 1.0,
+            "informal": 0.85,
+            "brick": 0.55,
+            "concrete": 0.3,
+        }.get(housing_type.lower(), 0.7)
+    if floor_level is None or "floor_level" in missing:
+        housing_factor = 1.0
+        assumed.append("floor_level (assumed top floor)")
+    elif floor_level >= 2:
+        housing_factor = min(1.0, housing_factor + 0.25)
+
+    weights = get_hazard_profile("heatwave")["vulnerability_weights"]
+    vulnerability = min(1.0, max(0.0,
+        weights["age_factor"] * age_factor
+        + weights["lives_alone"] * alone_factor
+        + weights["chronic_medical_need"] * medical_factor
+        + weights["no_cooling"] * no_cooling
+        + weights["heat_sensitive_housing"] * housing_factor
+        + weights["unreliable_electricity"] * no_electricity
+        + weights["unreliable_water"] * no_water
+        + weights["outdoor_worker"] * outdoor_factor
+        + weights["zone_deprivation"] * min(1.0, max(0.0, zone_deprivation))
+    ))
+
+    warning_gap, _ = compute_warning_gap(has_smartphone, signal_quality, alert_acknowledged, missing)
+    exposure = compute_heat_exposure(heat_index_c)
+    if is_silent_zone:
+        exposure = max(exposure, _config.get("uncertainty_penalties", {}).get("silent_zone_risk_floor", 0.65))
+    urgency = max(0.1, min(1.0, 1.0 - (eta_hours / 12.0)))
+    raw_score = 100.0 * exposure * (0.3 + 0.7 * vulnerability) * ((1.0 + 0.5 * warning_gap) / 1.5) * (0.5 + 0.5 * urgency)
+    if is_silent_zone:
+        raw_score = min(100.0, raw_score + _config.get("uncertainty_penalties", {}).get("silent_zone_priority_uplift", 15.0))
+    report_cfg = _config.get("report_evidence", {})
+    raw_score = min(100.0, raw_score + min(
+        report_cfg.get("max_score_uplift", 15.0),
+        max(0.0, report_evidence) * report_cfg.get("score_uplift_per_weight", 3.0),
+    ))
+    final_score = round(max(0.0, min(100.0, raw_score)), 1)
+
+    confidence = 1.0 - len(assumed) * 0.12
+    if is_fallback_hazard:
+        confidence -= 0.20
+    if is_silent_zone:
+        confidence -= 0.25
+    confidence = round(max(0.1, min(1.0, confidence * report_confidence)), 2)
+    confidence_level = "HIGH" if confidence >= 0.75 else "MEDIUM" if confidence >= 0.45 else "LOW"
+
+    breakdown = [
+        FactorContribution(name="hazard_exposure", label="Forecast Heat Exposure", raw_value=exposure, weight=0.35, contribution_score=round(final_score * 0.35, 1), percentage=35.0),
+        FactorContribution(name="vulnerability", label="Heat Vulnerability", raw_value=round(vulnerability, 2), weight=0.30, contribution_score=round(final_score * 0.30, 1), percentage=30.0),
+        FactorContribution(name="warning_gap", label="Warning Access Gap", raw_value=round(warning_gap, 2), weight=0.20, contribution_score=round(final_score * 0.20, 1), percentage=20.0),
+        FactorContribution(name="urgency", label="Time Until Peak Heat", raw_value=round(urgency, 2), weight=0.15, contribution_score=round(final_score * 0.15, 1), percentage=15.0),
+    ]
+    reasons = ["CRITICAL HEAT PRIORITY" if final_score >= 70 else "HIGH HEAT PRIORITY" if final_score >= 45 else "MODERATE HEAT PRIORITY"]
+    if age_factor >= 0.75:
+        reasons.append("Age increases heat sensitivity.")
+    if medical_factor:
+        reasons.append("Chronic illness needs medically capable support.")
+    if no_cooling or no_electricity:
+        reasons.append("Reliable cooling is not available.")
+    if no_water:
+        reasons.append("Reliable drinking water is not available.")
+    if outdoor_factor:
+        reasons.append("Outdoor work increases heat exposure.")
+    if warning_gap > 0.6:
+        reasons.append("Warnings may not reach this household.")
+
+    return PriorityScoreResult(
+        priority_score=final_score,
+        vulnerability_index=round(vulnerability, 3),
+        warning_gap=round(warning_gap, 3),
+        hazard_exposure=round(exposure, 3),
+        water_proximity_m=None,
+        water_proximity_risk=0.0,
+        urgency=round(urgency, 3),
+        confidence=confidence,
+        confidence_level=confidence_level,
+        is_silent_zone=is_silent_zone,
+        missing_fields_assumed=assumed,
+        factor_breakdown=breakdown,
+        summary_reason=" ".join(reasons),
+    )
 
 
 def calculate_priority_score(

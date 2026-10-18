@@ -57,6 +57,10 @@ class Household(Base):
     chronic_medical_need: Mapped[bool] = mapped_column(Boolean, default=False)
     housing_type: Mapped[str] = mapped_column(String(32), default="informal")  # informal, brick, concrete
     floor_level: Mapped[int] = mapped_column(Integer, default=0)  # 0=ground, 1=first floor+
+    has_cooling: Mapped[bool] = mapped_column(Boolean, default=False)
+    reliable_electricity: Mapped[bool] = mapped_column(Boolean, default=True)
+    reliable_water: Mapped[bool] = mapped_column(Boolean, default=True)
+    outdoor_worker: Mapped[bool] = mapped_column(Boolean, default=False)
     
     # Warning & Reach
     has_smartphone: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -112,6 +116,7 @@ class Report(Base):
     verified: Mapped[bool] = mapped_column(Boolean, default=False)
     photo_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     idempotency_key: Mapped[Optional[str]] = mapped_column(String(128), unique=True, nullable=True, index=True)
+    hazard_type: Mapped[str] = mapped_column(String(32), default="flood", index=True)
 
     __table_args__ = (
         Index("idx_reports_location", "location", postgresql_using="gist"),
@@ -125,6 +130,7 @@ class HazardSnapshot(Base):
     zone_id: Mapped[str] = mapped_column(String(64), ForeignKey("zones.id", ondelete="CASCADE"), nullable=False, index=True)
     hazard_type: Mapped[str] = mapped_column(String(32), default="flood")
     depth_m_forecast: Mapped[float] = mapped_column(Float, default=0.0)
+    heat_index_c: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     eta_hours: Mapped[float] = mapped_column(Float, default=12.0)
     source: Mapped[str] = mapped_column(String(64), default="open-meteo")
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
@@ -143,6 +149,7 @@ class Resource(Base):
     location = mapped_column(Geometry("POINT", srid=4326), nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="available")  # available, dispatched, maintenance
     medical_capable: Mapped[bool] = mapped_column(Boolean, default=False)
+    hazard_type: Mapped[str] = mapped_column(String(32), default="flood", index=True)
 
     __table_args__ = (
         Index("idx_resources_location", "location", postgresql_using="gist"),
@@ -158,6 +165,7 @@ class Shelter(Base):
     capacity: Mapped[int] = mapped_column(Integer, default=200)
     current_occupancy: Mapped[int] = mapped_column(Integer, default=0)
     accessible: Mapped[bool] = mapped_column(Boolean, default=True)
+    hazard_type: Mapped[str] = mapped_column(String(32), default="flood", index=True)
 
     __table_args__ = (
         Index("idx_shelters_location", "location", postgresql_using="gist"),
@@ -176,6 +184,7 @@ class Assignment(Base):
     eta_min: Mapped[float] = mapped_column(Float, default=15.0)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     confidence: Mapped[float] = mapped_column(Float, default=1.0)
+    hazard_type: Mapped[str] = mapped_column(String(32), default="flood", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     
     overridden_by: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)

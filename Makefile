@@ -1,4 +1,4 @@
-.PHONY: help setup dev doctor lint test seed migrate db-up db-down clean docker-config
+.PHONY: help setup dev doctor lint test seed demo-reset migrate db-up db-down clean docker-config
 
 help:
 	@echo "RescueRank Development Commands:"
@@ -6,6 +6,7 @@ help:
 	@echo "  make db-up         - Start local PostGIS container"
 	@echo "  make migrate       - Run Alembic database migrations"
 	@echo "  make seed          - Seed synthetic data and cached OSM points"
+	@echo "  make demo-reset    - Apply migrations and deterministically reseed all demo hazards"
 	@echo "  make dev           - Run backend and frontend concurrently"
 	@echo "  make doctor        - Verify dependencies and environment health"
 	@echo "  make lint          - Lint backend (ruff) and frontend (eslint)"
@@ -34,6 +35,10 @@ migrate:
 seed:
 	cd backend && uv run python scripts/generate_synthetic_data.py
 	cd backend && uv run python scripts/load_osm.py
+
+demo-reset:
+	docker compose exec -T backend alembic upgrade head
+	docker compose exec -T backend python -m scripts.generate_synthetic_data
 
 doctor:
 	uv run python scripts/verify_env.py

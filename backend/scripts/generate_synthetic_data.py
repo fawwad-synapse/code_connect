@@ -106,6 +106,15 @@ WATERWAYS = [
     ("water_orangi", "Orangi Nullah", "nullah", "SRID=4326;LINESTRING(66.998 24.919, 67.012 24.930, 67.030 24.940)"),
 ]
 
+HEAT_INDEX_BY_ZONE = {
+    "zone_lyari": 46.0,
+    "zone_malir": 48.0,
+    "zone_saddar": 47.0,
+    "zone_korangi": 49.0,
+    "zone_clifton": 43.0,
+    "zone_orangi": 45.0,
+}
+
 def make_polygon_wkt(coords):
     pairs = [f"{lng} {lat}" for lng, lat in coords]
     return f"SRID=4326;POLYGON(({', '.join(pairs)}))"
@@ -162,49 +171,75 @@ async def seed_data():
                 f"haz_{z['id']}", z["id"], "urban_flood", z["hazard_depth"], z["hazard_eta"], "Open-Meteo GloFAS", now, False
             )
 
+            # Four deterministic forecast points provide a local heat-index time series.
+            peak_heat = HEAT_INDEX_BY_ZONE[z["id"]]
+            for point, (hours_until_peak, adjustment) in enumerate(((12.0, -4.0), (6.0, -2.0), (3.0, -1.0), (1.0, 0.0))):
+                await conn.execute(
+                    """
+                    INSERT INTO hazard_snapshots (
+                        id, zone_id, hazard_type, depth_m_forecast, heat_index_c,
+                        eta_hours, source, fetched_at, is_fallback
+                    ) VALUES ($1, $2, 'heatwave', 0.0, $3, $4, 'synthetic_local_heat_forecast', $5, false)
+                    """,
+                    f"haz_heat_{z['id']}_{point}", z["id"], peak_heat + adjustment,
+                    hours_until_peak, now - timedelta(hours=4 - point),
+                )
+
         # 3. Insert Shelters (3 accessible, 1 inaccessible)
         print("Inserting shelters...")
         shelters_data = [
-            ("she_1", "Govt Girls College Lyari", 66.995, 24.860, 350, 140, True),
-            ("she_2", "Malir Sports Complex Relief Camp", 67.140, 24.875, 500, 45, True),
-            ("she_3", "Korangi Community Hall", 67.110, 24.815, 250, 210, True),
-            ("she_4", "Clifton Cantonment School", 67.035, 24.825, 300, 60, True),
-            ("she_5", "Orangi Relief Center", 67.010, 24.930, 400, 310, False),  # Inaccessible due to washed road
+            ("she_1", "Govt Girls College Lyari", 66.995, 24.860, 350, 140, True, "flood"),
+            ("she_2", "Malir Sports Complex Relief Camp", 67.140, 24.875, 500, 45, True, "flood"),
+            ("she_3", "Korangi Community Hall", 67.110, 24.815, 250, 210, True, "flood"),
+            ("she_4", "Clifton Cantonment School", 67.035, 24.825, 300, 60, True, "flood"),
+            ("she_5", "Orangi Relief Center", 67.010, 24.930, 400, 310, False, "flood"),
+            ("cool_1", "Lyari Public Cooling Center", 66.997, 24.861, 260, 80, True, "heatwave"),
+            ("cool_2", "Malir Heat Relief Center", 67.142, 24.876, 400, 120, True, "heatwave"),
+            ("cool_3", "Korangi Cooling Hall", 67.112, 24.816, 300, 190, True, "heatwave"),
+            ("cool_4", "Saddar Hydration Center", 67.026, 24.854, 220, 70, True, "heatwave"),
         ]
         for s in shelters_data:
             wkt = f"SRID=4326;POINT({s[2]} {s[3]})"
             await conn.execute(
                 """
-                INSERT INTO shelters (id, name, location, capacity, current_occupancy, accessible)
-                VALUES ($1, $2, ST_GeomFromEWKT($3), $4, $5, $6)
+                INSERT INTO shelters (id, name, location, capacity, current_occupancy, accessible, hazard_type)
+                VALUES ($1, $2, ST_GeomFromEWKT($3), $4, $5, $6, $7)
                 """,
-                s[0], s[1], wkt, s[4], s[5], s[6]
+                s[0], s[1], wkt, s[4], s[5], s[6], s[7]
             )
 
         # 4. Insert Rescue Resources (Boats, Trucks, Ambulances, Volunteers)
         print("Inserting rescue resources...")
         resources_data = [
-            ("res_boat_01", "Rescue Boat Alpha (Zodiac)", "boat", 8, 67.000, 24.862, "available", False),
-            ("res_boat_02", "Rescue Boat Bravo (Heavy)", "boat", 12, 67.005, 24.858, "available", False),
-            ("res_boat_03", "Coast Guard Inflatable 1", "boat", 6, 67.105, 24.812, "available", False),
-            ("res_boat_04", "Naval Reserve Dinghy", "boat", 6, 67.030, 24.820, "available", False),
-            ("res_truck_01", "High-Clearance Unimog 1", "truck", 15, 67.025, 24.850, "available", False),
-            ("res_truck_02", "Sindh Rescue 1122 Truck 2", "truck", 12, 67.030, 24.855, "available", False),
-            ("res_truck_03", "Army Logistics 4x4", "truck", 18, 67.130, 24.870, "available", False),
-            ("res_amb_01", "Edhi Advanced Life Support Amb", "ambulance", 2, 67.020, 24.852, "available", True),
-            ("res_amb_02", "Chhipa Critical Care Amb", "ambulance", 2, 67.100, 24.818, "available", True),
-            ("res_vol_01", "Red Crescent Rapid Volunteers", "volunteer_team", 5, 66.992, 24.865, "available", True),
-            ("res_vol_02", "Karachi Youth Emergency Squad", "volunteer_team", 6, 67.002, 24.935, "available", False),
-            ("res_vol_03", "Aman Tech Flood Support", "volunteer_team", 4, 67.135, 24.880, "available", False),
+            ("res_boat_01", "Rescue Boat Alpha (Zodiac)", "boat", 8, 67.000, 24.862, "available", False, "flood"),
+            ("res_boat_02", "Rescue Boat Bravo (Heavy)", "boat", 12, 67.005, 24.858, "available", False, "flood"),
+            ("res_boat_03", "Coast Guard Inflatable 1", "boat", 6, 67.105, 24.812, "available", False, "flood"),
+            ("res_boat_04", "Naval Reserve Dinghy", "boat", 6, 67.030, 24.820, "available", False, "flood"),
+            ("res_truck_01", "High-Clearance Unimog 1", "truck", 15, 67.025, 24.850, "available", False, "flood"),
+            ("res_truck_02", "Sindh Rescue 1122 Truck 2", "truck", 12, 67.030, 24.855, "available", False, "flood"),
+            ("res_truck_03", "Army Logistics 4x4", "truck", 18, 67.130, 24.870, "available", False, "flood"),
+            ("res_amb_01", "Edhi Advanced Life Support Amb", "ambulance", 2, 67.020, 24.852, "available", True, "flood"),
+            ("res_amb_02", "Chhipa Critical Care Amb", "ambulance", 2, 67.100, 24.818, "available", True, "flood"),
+            ("res_vol_01", "Red Crescent Rapid Volunteers", "volunteer_team", 5, 66.992, 24.865, "available", True, "flood"),
+            ("res_vol_02", "Karachi Youth Emergency Squad", "volunteer_team", 6, 67.002, 24.935, "available", False, "flood"),
+            ("res_vol_03", "Aman Tech Flood Support", "volunteer_team", 4, 67.135, 24.880, "available", False, "flood"),
+            ("heat_amb_01", "Edhi Heat Emergency Ambulance", "ambulance", 3, 67.020, 24.852, "available", True, "heatwave"),
+            ("heat_amb_02", "Chhipa Heat Response Ambulance", "ambulance", 3, 67.105, 24.818, "available", True, "heatwave"),
+            ("heat_cool_01", "Mobile Cooling Van East", "cooling_van", 20, 67.130, 24.870, "available", False, "heatwave"),
+            ("heat_cool_02", "Mobile Cooling Van West", "cooling_van", 20, 66.995, 24.862, "available", False, "heatwave"),
+            ("heat_water_01", "Drinking Water Van 1", "water_van", 30, 67.030, 24.855, "available", False, "heatwave"),
+            ("heat_water_02", "Drinking Water Van 2", "water_van", 30, 67.140, 24.875, "available", False, "heatwave"),
+            ("heat_outreach_01", "Heat Outreach Team North", "outreach_team", 8, 67.010, 24.930, "available", False, "heatwave"),
+            ("heat_outreach_02", "Heat Outreach Team South", "outreach_team", 8, 67.110, 24.815, "available", True, "heatwave"),
         ]
         for r in resources_data:
             wkt = f"SRID=4326;POINT({r[4]} {r[5]})"
             await conn.execute(
                 """
-                INSERT INTO resources (id, name, type, capacity, location, status, medical_capable)
-                VALUES ($1, $2, $3, $4, ST_GeomFromEWKT($5), $6, $7)
+                INSERT INTO resources (id, name, type, capacity, location, status, medical_capable, hazard_type)
+                VALUES ($1, $2, $3, $4, ST_GeomFromEWKT($5), $6, $7, $8)
                 """,
-                r[0], r[1], r[2], r[3], wkt, r[6], r[7]
+                r[0], r[1], r[2], r[3], wkt, r[6], r[7], r[8]
             )
 
         # 5. Insert Synthetic Households (~600)
@@ -238,11 +273,18 @@ async def seed_data():
                     missing_fields = {"fields": miss}
 
                 occupants = random.choices([1, 2, 3, 4, 6, 8, 10], weights=[0.08, 0.18, 0.28, 0.22, 0.14, 0.07, 0.03])[0]
+                # Separate per-household RNG keeps every pre-existing flood seed value stable.
+                heat_rng = random.Random(f"heat-{hh_id}")
+                has_cooling = heat_rng.random() < (0.25 if zone["deprivation_index"] > 0.7 else 0.65)
+                reliable_electricity = heat_rng.random() > (0.35 if zone["deprivation_index"] > 0.7 else 0.12)
+                reliable_water = heat_rng.random() > (0.25 if zone["deprivation_index"] > 0.7 else 0.08)
+                outdoor_worker = heat_rng.random() < (0.38 if zone["deprivation_index"] > 0.6 else 0.18)
                 household_records.append((
                     hh_id, zone_id, wkt, age, lives_alone, mobility_impaired, chronic_medical,
                     housing_type, floor_level, has_smartphone, signal_quality, alert_ack,
                     "sms" if not has_smartphone else "telegram", phone, True,
-                    missing_fields, occupants
+                    missing_fields, occupants, has_cooling, reliable_electricity,
+                    reliable_water, outdoor_worker
                 ))
 
         for hr in household_records:
@@ -251,13 +293,15 @@ async def seed_data():
                 INSERT INTO households (
                     id, zone_id, location, age, lives_alone, mobility_impaired, chronic_medical_need,
                     housing_type, floor_level, has_smartphone, signal_quality, alert_acknowledged,
-                    contact_method, phone_number, is_synthetic, missing_fields, occupants, created_at
+                    contact_method, phone_number, is_synthetic, missing_fields, occupants,
+                    has_cooling, reliable_electricity, reliable_water, outdoor_worker, created_at
                 ) VALUES (
-                    $1, $2, ST_GeomFromEWKT($3), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+                    $1, $2, ST_GeomFromEWKT($3), $4, $5, $6, $7, $8, $9, $10, $11, $12,
+                    $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
                 )
                 """,
                 hr[0], hr[1], hr[2], hr[3], hr[4], hr[5], hr[6], hr[7], hr[8], hr[9], hr[10], hr[11], hr[12], hr[13], hr[14],
-                import_json(hr[15]), hr[16], now
+                import_json(hr[15]), hr[16], hr[17], hr[18], hr[19], hr[20], now
             )
 
         # Materialise nearest-waterway distance once during deterministic seeding.
@@ -292,8 +336,8 @@ async def seed_data():
             parsed_json = {"urgency": "high", "water_depth_est_m": 1.0, "medical_emergency": "dialysis" in r[2].lower() or "oxygen" in r[2].lower()}
             await conn.execute(
                 """
-                INSERT INTO reports (id, source, raw_text, parsed, location, reported_at, received_at, confidence, cluster_id, verified)
-                VALUES ($1, $2, $3, $4, ST_GeomFromEWKT($5), $6, $7, $8, $9, $10)
+                INSERT INTO reports (id, source, raw_text, parsed, location, reported_at, received_at, confidence, cluster_id, verified, hazard_type)
+                VALUES ($1, $2, $3, $4, ST_GeomFromEWKT($5), $6, $7, $8, $9, $10, 'flood')
                 """,
                 r[0], r[1], r[2], import_json(parsed_json), wkt, now - timedelta(minutes=random.randint(5, 45)), now, 0.95 if r[6] else 0.80, r[5], r[6]
             )
