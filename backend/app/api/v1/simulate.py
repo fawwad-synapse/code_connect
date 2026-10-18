@@ -131,28 +131,22 @@ async def run_simulation_scenario(
         }
 
     elif scenario == "resource_conflict":
-        # Pits a dialysis patient against a 10-person stranded family for 1 available boat
+        # Re-run the actual optimizer on current synthetic records; do not return canned households/scores.
+        from app.api.v1.resources import optimize_assignments
+        plan = await optimize_assignments(
+            use_fallback_solver=True,
+            flood_level_percent=None,
+            candidate_limit=100,
+            db=db,
+        )
         return {
             "scenario": "resource_conflict",
             "simulated": True,
             "status": "analyzed",
-            "chosen_allocation": {
-                "resource_name": "Rescue Boat Alpha (Zodiac)",
-                "assigned_to": "Household #hh_lyari_042 (Dialysis Patient + Immobile Elder)",
-                "priority_score": 94.2,
-                "eta_min": 8.5,
-            },
-            "queued_candidate": {
-                "candidate": "Household #hh_lyari_089 (10-Person Stranded Family on 1st Floor)",
-                "priority_score": 71.8,
-                "score_delta": -22.4,
-                "status": "QUEUED FOR SECONDARY HIGH-CLEARANCE TRUCK",
-            },
-            "trade_off_explanation": (
-                "Boat Alpha was assigned to the medical emergency because its priority score is 22.4 points higher "
-                "due to acute dialysis life dependency and single-story inundation. "
-                "The 10-person family has safe second-floor vertical refuge and is queued for a 15-person Unimog truck."
-            )
+            "message": "Simulated scenario: computed from current synthetic households and available resources.",
+            "conflicts": plan["conflicts"],
+            "assignments": plan["assignments"],
+            "unassigned_targets": plan["unassigned_targets"],
         }
 
     else:

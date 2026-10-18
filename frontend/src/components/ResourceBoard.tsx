@@ -21,7 +21,6 @@ import { toast } from "sonner";
 import { UI_COPY } from "@/lib/ui-copy";
 import { PageState } from "@/components/PageState";
 import { useAppStore } from "@/lib/store";
-import { useAppStore } from "@/lib/store";
 
 interface AssignmentResult {
   id: string;
@@ -42,6 +41,7 @@ interface ConflictDetail {
   conflict_id: string;
   resource_id: string;
   resource_name: string;
+  winner_id: string;
   competing_targets: Array<{
     id: string;
     score: number;
@@ -50,6 +50,7 @@ interface ConflictDetail {
     medical_need: boolean;
   }>;
   resolution_reason: string;
+  trade_off: string;
   score_delta: number;
 }
 
@@ -62,7 +63,8 @@ interface UnassignedTarget {
 
 export function ResourceBoard() {
   const latestPlan = useAppStore((state) => state.latestPlan);
-  const latestPlan = useAppStore((state) => state.latestPlan);
+  const activeFloodLevel = useAppStore((state) => state.activeFloodLevel);
+  const setLatestPlan = useAppStore((state) => state.setLatestPlan);
   const [resources, setResources] = useState<ResourceItem[]>([]);
   const [shelters, setShelters] = useState<ShelterItem[]>([]);
   const [assignments, setAssignments] = useState<AssignmentResult[]>([]);
@@ -79,6 +81,8 @@ export function ResourceBoard() {
   const [overrideModalOpen, setOverrideModalOpen] = useState(false);
   const [overrideCoordinator, setOverrideCoordinator] = useState("");
   const [overrideReason, setOverrideReason] = useState("");
+  const [overrideResourceId, setOverrideResourceId] = useState("");
+  const [overrideNeedsResource, setOverrideNeedsResource] = useState(false);
   const [submittingOverride, setSubmittingOverride] = useState(false);
 
   const fetchData = async () => {
@@ -111,26 +115,18 @@ export function ResourceBoard() {
     setHasOptimization(true);
   }, [latestPlan]);
 
-  useEffect(() => {
-    if (!latestPlan) return;
-    setAssignments(latestPlan.assignments || []);
-    setConflicts(latestPlan.conflicts || []);
-    setUnassignedTargets(latestPlan.unassigned_targets || []);
-    setCandidateCount(latestPlan.candidate_count || 0);
-    setHasOptimization(true);
-  }, [latestPlan]);
-
   const handleRunOptimization = async (useFallback = false) => {
     try {
       setOptimizing(true);
       setOptimizationError(false);
-      const result = await api.optimizeAssignments(useFallback);
+      const result = await api.optimizeAssignments(useFallback, activeFloodLevel);
       setAssignments(result.assignments || []);
       setConflicts(result.conflicts || []);
       setUnassignedTargets(result.unassigned_targets || []);
       setCandidateCount(result.candidate_count || 0);
       setUnassignedCount(result.unassigned_count ?? result.unassigned_targets?.length ?? 0);
       setHasOptimization(true);
+      setLatestPlan(result);
       toast.success(
         `Optimization complete: ${result.assignments?.length || 0} teams dispatched via ${
           result.solver_used || "OR-Tools"
@@ -144,10 +140,12 @@ export function ResourceBoard() {
     }
   };
 
-  const handleOpenOverride = (assignment: AssignmentResult) => {
+  const handleOpenOverride = (assignment: AssignmentResult, requireReplacement = false) => {
     setSelectedAssignment(assignment);
     setOverrideCoordinator("");
     setOverrideReason("");
+    setOverrideResourceId("");
+    setOverrideNeedsResource(requireReplacement);
     setOverrideModalOpen(true);
   };
 
@@ -158,12 +156,17 @@ export function ResourceBoard() {
       toast.error("Coordinator name and rationale are mandatory for human override");
       return;
     }
+    if (overrideNeedsResource && !overrideResourceId) {
+      toast.error("Select a replacement team for this competing-demand override");
+      return;
+    }
 
     try {
       setSubmittingOverride(true);
       await api.overrideAssignment(selectedAssignment.id, {
         overridden_by: overrideCoordinator.trim(),
         override_reason: overrideReason.trim(),
+        new_resource_id: overrideResourceId || undefined,
       });
       toast.success(`Override logged in audit trail for ${selectedAssignment.resource_name}`);
       setOverrideModalOpen(false);
@@ -174,6 +177,8 @@ export function ResourceBoard() {
           a.id === selectedAssignment.id
             ? {
                 ...a,
+                resource_id: overrideResourceId || a.resource_id,
+                resource_name: resources.find((resource) => resource.id === overrideResourceId)?.name || a.resource_name,
                 overridden: true,
                 overridden_by: overrideCoordinator.trim(),
                 override_reason: overrideReason.trim(),
@@ -457,7 +462,7 @@ export function ResourceBoard() {
             <div className="mt-6 space-y-3">
               <h3 className="text-sm font-bold uppercase tracking-wider text-rose-400 flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-rose-400" />
-                Resource Contention & Trade-off Explanations
+              Competing demands
               </h3>
               <div className="space-y-3">
                 {conflicts.map((conf) => (
@@ -470,6 +475,7 @@ export function ResourceBoard() {
                       <span className="text-slate-400 font-mono">Score Delta: +{conf.score_delta.toFixed(1)}</span>
                     </div>
                     <p className="text-slate-300 leading-relaxed">{conf.resolution_reason}</p>
+                    <p className="text-slate-400">Trade-off: {conf.trade_off}</p>
                     <div className="grid grid-cols-2 gap-2 pt-2 border-t border-rose-900/30">
                       {conf.competing_targets.map((tgt, i) => (
                         <div key={tgt.id} className="bg-slate-900/60 p-2 rounded border border-slate-800">
@@ -482,6 +488,13 @@ export function ResourceBoard() {
                         </div>
                       ))}
                     </div>
+                    {assignments.find((assignment) => assignment.target_id === conf.winner_id) && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenOverride(assignments.find((assignment) => assignment.target_id === conf.winner_id)!, true)}
+                        className="ui-button-secondary mt-2"
+                      >Override proposed winner</button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -520,6 +533,19 @@ export function ResourceBoard() {
             </div>
 
             <form onSubmit={handleSubmitOverride} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Replacement team</label>
+                <select
+                  value={overrideResourceId}
+                  onChange={(event) => setOverrideResourceId(event.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-lg px-3 py-2 text-xs text-white"
+                >
+                  <option value="">Keep current team</option>
+                  {resources.filter((resource) => resource.id !== selectedAssignment.resource_id && resource.status.toLowerCase() === "available").map((resource) => (
+                    <option key={resource.id} value={resource.id}>{resource.name} ({resource.type}, capacity {resource.capacity})</option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
                   Coordinator name or ID <span className="text-rose-400">*</span>

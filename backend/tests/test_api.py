@@ -265,6 +265,12 @@ async def test_simulate_conflict_scenario():
         assert resp.status_code == 200
         data = resp.json()
         assert data["scenario"] == "resource_conflict"
-        assert "chosen_allocation" in data
-        assert "queued_candidate" in data
-        assert "trade_off_explanation" in data
+        assert data["simulated"] is True
+        assert "chosen_allocation" not in data
+        assert isinstance(data["conflicts"], list)
+        assignment_scores = {item["target_id"]: item["priority_score"] for item in data["assignments"]}
+        for conflict in data["conflicts"]:
+            assert conflict["winner_id"] in assignment_scores
+            winner = next(candidate for candidate in conflict["competing_targets"] if candidate["id"] == conflict["winner_id"])
+            assert winner["score"] == assignment_scores[conflict["winner_id"]]
+            assert conflict["trade_off"]

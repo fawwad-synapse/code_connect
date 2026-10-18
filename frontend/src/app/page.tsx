@@ -41,7 +41,7 @@ export default function OperationsCenterPage() {
     shelterCount: 4,
   });
 
-  const { selectedPriority, setSelectedPriority, mapLayers, toggleLayer, setLatestPlan } = useAppStore();
+  const { selectedPriority, setSelectedPriority, mapLayers, toggleLayer, setLatestPlan, setActiveFloodLevel } = useAppStore();
 
   const fetchDashboardData = async (whatIfLevel: number | null = floodLevel) => {
     try {
@@ -114,6 +114,7 @@ export default function OperationsCenterPage() {
   }, []);
 
   useEffect(() => {
+    setActiveFloodLevel(floodLevel);
     setPlanUpdated(false);
     const timeout = window.setTimeout(async () => {
       try {
@@ -126,7 +127,7 @@ export default function OperationsCenterPage() {
       }
     }, 650);
     return () => window.clearTimeout(timeout);
-  }, [floodLevel, setLatestPlan]);
+  }, [floodLevel, setLatestPlan, setActiveFloodLevel]);
 
   const handleScenarioFinished = () => {
     fetchDashboardData();

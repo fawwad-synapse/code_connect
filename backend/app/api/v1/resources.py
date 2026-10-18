@@ -71,8 +71,10 @@ def resource_board_response(opt_res: Any, targets: List[Dict[str, Any]], resourc
             "conflict_id": f"conflict_{index}_{conflict.chosen_resource_id}",
             "resource_id": conflict.chosen_resource_id,
             "resource_name": assigned.resource_name if assigned else conflict.chosen_resource_id,
+            "winner_id": conflict.chosen_target_id,
             "competing_targets": competing_targets,
             "resolution_reason": conflict.conflict_justification,
+            "trade_off": f"The proposed winner scores {conflict.chosen_priority_score:.1f}; the next household waits because available capacity is limited.",
             "score_delta": conflict.queued_targets[0]["score_delta"] if conflict.queued_targets else 0.0,
         })
 

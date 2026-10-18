@@ -9,6 +9,8 @@ interface AppState {
   setActiveScenario: (scenario: string | null) => void;
   latestPlan: any;
   setLatestPlan: (plan: any) => void;
+  activeFloodLevel: number;
+  setActiveFloodLevel: (level: number) => void;
 
   mapLayers: {
     zones: boolean;
@@ -41,6 +43,8 @@ export const useAppStore = create<AppState>((set) => ({
   setActiveScenario: (scenario) => set({ activeScenario: scenario }),
   latestPlan: null,
   setLatestPlan: (plan) => set({ latestPlan: plan }),
+  activeFloodLevel: 50,
+  setActiveFloodLevel: (level) => set({ activeFloodLevel: level }),
 
   mapLayers: {
     zones: true,
