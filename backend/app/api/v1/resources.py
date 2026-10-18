@@ -1,5 +1,6 @@
 import uuid
 import json
+import math
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Body, Query
@@ -11,6 +12,7 @@ from app.db.session import get_db
 from app.services.routing import solve_resource_assignments, solve_greedy_assignment
 from app.services.scoring import calculate_priority_score
 from app.api.v1.ws import ws_manager
+from app.api.v1.priorities import get_priorities as priorities_router_endpoint
 
 router = APIRouter()
 
@@ -93,7 +95,10 @@ def resource_board_response(opt_res: Any, targets: List[Dict[str, Any]], resourc
 
 
 @router.get("/resources")
-async def get_resources(db: AsyncSession = Depends(get_db)):
+async def get_resources(
+    flood_level_percent: Optional[float] = Query(None, ge=0, le=100),
+    db: AsyncSession = Depends(get_db),
+):
     """
     Returns all fleet resources (boats, trucks, ambulances, volunteer squads),
     shelters, and blocked roads.
@@ -137,6 +142,56 @@ async def get_resources(db: AsyncSession = Depends(get_db)):
         }
         for s in she_rows
     ]
+
+    demand_by_shelter = {s["id"]: 0 for s in shelters}
+    household_pages = []
+    for page in range(1, 4):
+        result = await priorities_router_endpoint(
+            zone_id=None, medical_only=False, alone_only=False, low_confidence_only=False,
+            min_score=0.0, page=page, page_size=200,
+            flood_level_percent=flood_level_percent, db=db,
+        )
+        household_pages.extend(result["items"])
+
+    def distance_m(a: Dict[str, float], b: Dict[str, float]) -> float:
+        radius = 6371000
+        lat1, lat2 = math.radians(a["lat"]), math.radians(b["lat"])
+        dlat = lat2 - lat1
+        dlon = math.radians(b["lng"] - a["lng"])
+        value = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+        return radius * 2 * math.atan2(math.sqrt(value), math.sqrt(1 - value))
+
+    remaining = {s["id"]: max(0, s["capacity"] - s["current_occupancy"]) for s in shelters}
+    for household in household_pages:
+        if household["priority_score"] < 45:
+            continue
+        nearest = min(
+            ((distance_m(household["location"], s["location"]), s) for s in shelters),
+            key=lambda pair: pair[0],
+            default=(float("inf"), None),
+        )
+        if nearest[1] is not None and nearest[0] <= 5000:
+            demand_by_shelter[nearest[1]["id"]] += household.get("occupants") or 1
+
+    for shelter in shelters:
+        demand = demand_by_shelter[shelter["id"]]
+        remaining_capacity = remaining[shelter["id"]]
+        alternatives = [
+            candidate for candidate in shelters
+            if candidate["id"] != shelter["id"]
+            and remaining[candidate["id"]] - demand_by_shelter[candidate["id"]] > 0
+        ]
+        alternative = min(
+            alternatives,
+            key=lambda candidate: distance_m(shelter["location"], candidate["location"]),
+            default=None,
+        )
+        shelter.update({
+            "expected_demand": demand,
+            "remaining_capacity": remaining_capacity,
+            "overflow_by": max(0, demand - remaining_capacity),
+            "alternative_shelter": alternative["name"] if alternative else None,
+        })
 
     # Offline cached blocked roads
     blocked_roads = [

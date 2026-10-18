@@ -83,6 +83,10 @@ export interface ShelterItem {
   current_occupancy: number;
   occupancy_rate: number;
   accessible: boolean;
+  expected_demand: number;
+  remaining_capacity: number;
+  overflow_by: number;
+  alternative_shelter?: string | null;
 }
 
 export interface BlockedRoadItem {
@@ -152,8 +156,9 @@ export const api = {
     return res.json();
   },
 
-  async getResources(): Promise<{ resources: ResourceItem[]; shelters: ShelterItem[]; blocked_roads: BlockedRoadItem[] }> {
-    const res = await fetch(`${API_BASE}/api/v1/resources`);
+  async getResources(floodLevelPercent?: number): Promise<{ resources: ResourceItem[]; shelters: ShelterItem[]; blocked_roads: BlockedRoadItem[] }> {
+    const query = floodLevelPercent === undefined ? "" : `?flood_level_percent=${floodLevelPercent}`;
+    const res = await fetch(`${API_BASE}/api/v1/resources${query}`);
     return res.json();
   },
 

@@ -138,6 +138,8 @@ async def test_resources_and_optimize():
         data = resp.json()
         assert len(data["resources"]) >= 10
         assert len(data["shelters"]) >= 4
+        assert all({"expected_demand", "remaining_capacity", "overflow_by", "alternative_shelter"} <= shelter.keys() for shelter in data["shelters"])
+        assert all(shelter["expected_demand"] >= 0 and shelter["overflow_by"] == max(0, shelter["expected_demand"] - shelter["remaining_capacity"]) for shelter in data["shelters"])
 
         # Run optimization
         opt_resp = await client.post("/api/v1/assignments/optimize")

@@ -89,7 +89,7 @@ export function ResourceBoard() {
     try {
       setLoading(true);
       setLoadError(false);
-      const res = await api.getResources();
+      const res = await api.getResources(activeFloodLevel);
       setResources(res.resources || []);
       setShelters(res.shelters || []);
     } catch (err) {
@@ -103,7 +103,7 @@ export function ResourceBoard() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [activeFloodLevel]);
 
   useEffect(() => {
     if (!latestPlan) return;
@@ -314,21 +314,23 @@ export function ResourceBoard() {
                   <div className="flex items-center justify-between font-semibold text-slate-200">
                     <span>{s.name}</span>
                     <span className="text-slate-400">
-                      {s.current_occupancy}/{s.capacity} ({Math.round(s.occupancy_rate * 100)}%)
+                      {s.expected_demand} expected / {s.remaining_capacity} spaces available
                     </span>
                   </div>
                   <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full ${
-                        s.occupancy_rate > 0.8
+                        s.overflow_by > 0
                           ? "bg-rose-500"
-                          : s.occupancy_rate > 0.5
+                          : s.expected_demand / Math.max(1, s.remaining_capacity) > 0.7
                           ? "bg-amber-500"
                           : "bg-blue-500"
                       }`}
-                      style={{ width: `${Math.min(100, s.occupancy_rate * 100)}%` }}
+                      style={{ width: `${Math.min(100, s.expected_demand / Math.max(1, s.remaining_capacity) * 100)}%` }}
                     />
                   </div>
+                  <div className="text-[10px] text-slate-500">Current occupancy: {s.current_occupancy}/{s.capacity}</div>
+                  {s.overflow_by > 0 && <div role="alert" className="text-[11px] font-semibold text-rose-300">Expected to overflow by {s.overflow_by} people{s.alternative_shelter ? `; consider ${s.alternative_shelter}` : "; no nearby shelter has spare capacity"}.</div>}
                 </div>
               ))}
             </div>
