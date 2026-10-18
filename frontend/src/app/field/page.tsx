@@ -20,6 +20,7 @@ import { queueOfflineReport, getPendingOfflineReports, syncOfflineReports } from
 import { useAppStore } from "@/lib/store";
 import { toast } from "sonner";
 import { UI_COPY } from "@/lib/ui-copy";
+import { PageHeader } from "@/components/PageHeader";
 
 export default function FieldPwaPage() {
   const [isOnline, setIsOnline] = useState(true);
@@ -166,32 +167,20 @@ export default function FieldPwaPage() {
 
   return (
     <main className="flex-1 max-w-2xl w-full mx-auto p-4 md:p-6 space-y-5">
-      {/* PWA Header & Offline Status */}
-      <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-xl flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
-            <h1 className="text-lg font-bold text-white">{UI_COPY.pages.fieldTitle}</h1>
-          </div>
-          <p className="text-xs text-slate-400 mt-0.5">
-            {UI_COPY.pages.fieldDescription}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {isOnline ? (
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5">
-              <Wifi className="w-3.5 h-3.5" />
-              Online
-            </span>
-          ) : (
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1.5">
-              <WifiOff className="w-3.5 h-3.5" />
-              Offline Mode
-            </span>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title={UI_COPY.pages.fieldTitle}
+        description={UI_COPY.pages.fieldDescription}
+        icon={<CloudLightning className="h-6 w-6" />}
+        actions={isOnline ? (
+          <span className="min-h-11 inline-flex items-center gap-2 rounded-full border border-emerald-700 bg-emerald-950 px-4 text-sm font-semibold text-emerald-200">
+            <Wifi aria-hidden="true" className="h-4 w-4" /> Online
+          </span>
+        ) : (
+          <span className="min-h-11 inline-flex items-center gap-2 rounded-full border border-amber-700 bg-amber-950 px-4 text-sm font-semibold text-amber-100">
+            <WifiOff aria-hidden="true" className="h-4 w-4" /> Offline
+          </span>
+        )}
+      />
 
       {/* Sync Banner if pending items */}
       {pendingQueue.length > 0 && (

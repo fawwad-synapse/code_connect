@@ -58,6 +58,7 @@ export const UI_COPY = {
     synthetic: "Example households",
   },
   actions: {
+    backToOverview: "Back to response overview",
     refresh: "Refresh list",
     recommendAssignments: "Recommend team assignments",
     submitReport: "Send report",

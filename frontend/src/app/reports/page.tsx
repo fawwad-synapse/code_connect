@@ -6,7 +6,6 @@ import {
   Send,
   Sparkles,
   RefreshCw,
-  ArrowLeft,
   AlertCircle,
   Copy,
   Layers,
@@ -14,10 +13,10 @@ import {
   Clock,
   Languages,
 } from "lucide-react";
-import Link from "next/link";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { UI_COPY } from "@/lib/ui-copy";
+import { PageHeader } from "@/components/PageHeader";
 
 interface ReportItem {
   id: string;
@@ -117,35 +116,21 @@ export default function ReportsPage() {
 
   return (
     <main className="flex-1 max-w-[1720px] w-full mx-auto p-4 md:p-6 space-y-6">
-      {/* Page Title */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-4 md:p-5 rounded-2xl shadow-xl">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/"
-            className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
-          <div>
-            <h1 className="text-xl font-bold text-white flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-500" />
-              {UI_COPY.pages.reportsTitle}
-            </h1>
-            <p className="text-xs text-slate-400">
-              Enter a message in English or Roman Urdu, add its location, and send it to the response team.
-            </p>
-          </div>
-        </div>
-
-        <button
+      <PageHeader
+        title={UI_COPY.pages.reportsTitle}
+        description={UI_COPY.pages.reportsDescription}
+        icon={<FileText className="h-6 w-6" />}
+        backHref="/"
+        actions={<button
           onClick={() => fetchReports()}
           disabled={loading}
-          className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border border-slate-700"
+          className="min-h-11 rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:opacity-50"
+          aria-label={UI_COPY.actions.refresh}
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
           Refresh Feed
-        </button>
-      </div>
+        </button>}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Form: Ingest Report */}
