@@ -5,6 +5,7 @@ import { Search, Filter, ShieldAlert, HeartPulse, User, HelpCircle, ChevronRight
 import { PriorityItem } from "@/lib/api";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { useAppStore } from "@/lib/store";
+import { UI_COPY } from "@/lib/ui-copy";
 
 interface Props {
   priorities: PriorityItem[];
@@ -38,7 +39,8 @@ export function PriorityList({ priorities, onSelectPriority, selectedId }: Props
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
           <input
             type="text"
-            placeholder="Search priority cases by ID or Zone..."
+            placeholder="Search by household ID or area..."
+            aria-label="Search by household ID or area"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
@@ -56,7 +58,7 @@ export function PriorityList({ priorities, onSelectPriority, selectedId }: Props
             }`}
           >
             <HeartPulse className="w-3 h-3" />
-            Medical Needs Only
+            {UI_COPY.list.filterMedical}
           </button>
 
           <button
@@ -68,7 +70,7 @@ export function PriorityList({ priorities, onSelectPriority, selectedId }: Props
             }`}
           >
             <User className="w-3 h-3" />
-            Living Alone
+            {UI_COPY.list.filterAlone}
           </button>
 
           <button
@@ -80,7 +82,7 @@ export function PriorityList({ priorities, onSelectPriority, selectedId }: Props
             }`}
           >
             <HelpCircle className="w-3 h-3" />
-            Missing Data (Low Conf)
+            {UI_COPY.list.filterMissing}
           </button>
 
           {(activeFilters.medicalOnly || activeFilters.aloneOnly || activeFilters.lowConfidenceOnly) && (
@@ -98,7 +100,7 @@ export function PriorityList({ priorities, onSelectPriority, selectedId }: Props
       <div className="flex-1 overflow-y-auto divide-y divide-slate-800/60 p-1.5">
         {filtered.length === 0 ? (
           <div className="p-8 text-center text-xs text-slate-500">
-            No priority cases match the current filter criteria.
+            {UI_COPY.list.noMatch}
           </div>
         ) : (
           filtered.map((item, index) => {
@@ -124,7 +126,7 @@ export function PriorityList({ priorities, onSelectPriority, selectedId }: Props
                     }`}
                   >
                     <span>{Math.round(item.priority_score)}</span>
-                    <span className="text-3xs uppercase font-normal text-slate-400">Score</span>
+                    <span className="text-3xs uppercase font-normal text-slate-400">Help priority</span>
                   </div>
 
                   <div className="space-y-0.5">
@@ -140,8 +142,8 @@ export function PriorityList({ priorities, onSelectPriority, selectedId }: Props
                           <HeartPulse className="w-2.5 h-2.5" /> Medical
                         </span>
                       )}
-                      {item.lives_alone && <span>Alone</span>}
-                      {item.mobility_impaired && <span>Immobile</span>}
+                      {item.lives_alone && <span>{UI_COPY.list.livesAlone}</span>}
+                      {item.mobility_impaired && <span>{UI_COPY.list.mobilityHelp}</span>}
                     </div>
 
                     <div className="pt-0.5">
@@ -165,7 +167,7 @@ export function PriorityList({ priorities, onSelectPriority, selectedId }: Props
       {/* Footer Summary */}
       <div className="p-2.5 border-t border-slate-800 bg-slate-950 text-2xs text-slate-400 flex items-center justify-between">
         <span>Showing {filtered.length} of {priorities.length} total cases</span>
-        <span className="text-slate-500 font-mono">Sorted by Explainable Priority Score</span>
+        <span className="text-slate-500">{UI_COPY.list.sorted}</span>
       </div>
     </div>
   );

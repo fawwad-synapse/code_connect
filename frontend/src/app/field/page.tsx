@@ -19,6 +19,7 @@ import {
 import { queueOfflineReport, getPendingOfflineReports, syncOfflineReports } from "@/lib/offline-db";
 import { useAppStore } from "@/lib/store";
 import { toast } from "sonner";
+import { UI_COPY } from "@/lib/ui-copy";
 
 export default function FieldPwaPage() {
   const [isOnline, setIsOnline] = useState(true);
@@ -170,10 +171,10 @@ export default function FieldPwaPage() {
         <div>
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
-            <h1 className="text-lg font-bold text-white">RescueRank Field PWA</h1>
+            <h1 className="text-lg font-bold text-white">{UI_COPY.pages.fieldTitle}</h1>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
-            Offline-first rapid triage intake for ground responders
+            {UI_COPY.pages.fieldDescription}
           </p>
         </div>
 
@@ -198,7 +199,7 @@ export default function FieldPwaPage() {
           <div className="flex items-center gap-2">
             <CloudOff className="w-4 h-4 text-amber-400" />
             <span>
-              <strong>{pendingQueue.length}</strong> report(s) stored locally in browser IndexedDB
+              <strong>{pendingQueue.length}</strong> report(s) saved on this device and not sent yet.
             </span>
           </div>
 
@@ -220,13 +221,13 @@ export default function FieldPwaPage() {
             <ShieldAlert className="w-4 h-4 text-rose-500" />
             Vulnerability & Distress Assessment
           </h2>
-          <span className="text-[11px] text-slate-500 font-mono">v1.0 Offline Form</span>
+            <span className="text-[11px] text-slate-500">Works offline</span>
         </div>
 
         {/* Location & GPS */}
         <div className="space-y-2">
           <label className="block text-xs font-semibold text-slate-300">
-            Location Name / Landmark / Zone <span className="text-rose-400">*</span>
+            {UI_COPY.field.location} <span className="text-rose-400">*</span>
           </label>
           <input
             type="text"
@@ -245,12 +246,12 @@ export default function FieldPwaPage() {
               className="px-3 py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5 border border-slate-700 transition"
             >
               <LocateFixed className={`w-3.5 h-3.5 text-blue-400 ${gettingLocation ? "animate-spin" : ""}`} />
-              {lat && lng ? `GPS: ${lat}, ${lng}` : "Capture Device GPS"}
+              {lat && lng ? `Location: ${lat}, ${lng}` : UI_COPY.actions.captureLocation}
             </button>
             {lat && lng && (
               <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
                 <CheckCircle className="w-3.5 h-3.5" />
-                Lat/Lng Stored
+                {UI_COPY.field.locationSaved}
               </span>
             )}
           </div>
@@ -259,7 +260,7 @@ export default function FieldPwaPage() {
         {/* Demographics & Household Vulnerabilities */}
         <div className="grid grid-cols-2 gap-3 pt-2">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Total Occupants</label>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">{UI_COPY.field.peopleCount}</label>
             <input
               type="number"
               min={1}
@@ -270,7 +271,7 @@ export default function FieldPwaPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Elderly Occupants (60+)</label>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">{UI_COPY.field.olderPeople}</label>
             <input
               type="number"
               min={0}
@@ -283,7 +284,7 @@ export default function FieldPwaPage() {
 
         {/* Critical Risk Checkboxes */}
         <div className="space-y-2 pt-2">
-          <label className="block text-xs font-semibold text-slate-300 mb-1">Vulnerability Flags</label>
+          <label className="block text-xs font-semibold text-slate-300 mb-1">{UI_COPY.field.supportFlags}</label>
           <div className="space-y-2 bg-slate-950 p-3.5 rounded-xl border border-slate-800">
             <label className="flex items-center gap-3 cursor-pointer text-xs text-slate-200">
               <input
@@ -292,7 +293,7 @@ export default function FieldPwaPage() {
                 onChange={(e) => setLivesAlone(e.target.checked)}
                 className="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-slate-900 border-slate-700"
               />
-              <span>Lives alone (Isolated / No local caregiver)</span>
+              <span>{UI_COPY.field.alone}</span>
             </label>
 
             <label className="flex items-center gap-3 cursor-pointer text-xs text-slate-200">
@@ -302,7 +303,7 @@ export default function FieldPwaPage() {
                 onChange={(e) => setMobilityImpaired(e.target.checked)}
                 className="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-slate-900 border-slate-700"
               />
-              <span>Mobility impaired (Bedridden, wheelchair, unable to walk unassisted)</span>
+              <span>{UI_COPY.field.mobility}</span>
             </label>
 
             <label className="flex items-center gap-3 cursor-pointer text-xs text-slate-200">
@@ -313,7 +314,7 @@ export default function FieldPwaPage() {
                 className="w-4 h-4 rounded text-rose-500 focus:ring-0 bg-slate-900 border-slate-700"
               />
               <span className="text-rose-300 font-semibold">
-                Chronic medical dependency (Dialysis, oxygen cylinder, insulin, cardiac)
+                {UI_COPY.field.medical}
               </span>
             </label>
           </div>
@@ -322,7 +323,7 @@ export default function FieldPwaPage() {
         {/* Hazard Exposure & Signal */}
         <div className="grid grid-cols-2 gap-3 pt-2">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Estimated Flood Depth</label>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">{UI_COPY.field.water}</label>
             <select
               value={waterDepth}
               onChange={(e) => setWaterDepth(e.target.value)}
@@ -336,7 +337,7 @@ export default function FieldPwaPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Cell Signal Quality</label>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">{UI_COPY.field.signal}</label>
             <select
               value={signalBars}
               onChange={(e) => setSignalBars(e.target.value)}
@@ -353,13 +354,13 @@ export default function FieldPwaPage() {
         {/* Tactical Notes */}
         <div>
           <label className="block text-xs font-semibold text-slate-300 mb-1">
-            Urgent Tactical Notes (Urdu / English)
+            {UI_COPY.field.notes}
           </label>
           <textarea
             rows={3}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="e.g. Ground floor flooded, moved to roof. Need immediate drinking water and wheelchair transport."
+          placeholder={UI_COPY.field.notesPlaceholder}
             className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
           />
         </div>
@@ -371,7 +372,7 @@ export default function FieldPwaPage() {
           className="w-full py-3 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-amber-600/30 transition disabled:opacity-50"
         >
           <Send className="w-4 h-4" />
-          {submitting ? "Saving Assessment..." : isOnline ? "Submit Field Report (Online Sync)" : "Queue Offline in IndexedDB"}
+          {submitting ? "Saving report..." : UI_COPY.actions.submitReport}
         </button>
       </form>
     </main>

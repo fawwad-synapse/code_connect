@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { UI_COPY } from "@/lib/ui-copy";
 
 interface ActionItem {
   time_window: string;
@@ -57,21 +58,21 @@ export function Timeline() {
       return (
         <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center gap-1.5">
           <Clock className="w-3.5 h-3.5" />
-          T-6h Advisory & Pre-positioning
+          {UI_COPY.preparation.sixHours}
         </span>
       );
     } else if (windowStr.includes("T-3h")) {
       return (
         <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1.5">
           <BellRing className="w-3.5 h-3.5" />
-          T-3h Targeted Outreach
+          {UI_COPY.preparation.threeHours}
         </span>
       );
     } else {
       return (
         <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1.5">
           <AlertOctagon className="w-3.5 h-3.5" />
-          T-0h Active Tactical Rescue
+          {UI_COPY.preparation.now}
         </span>
       );
     }
@@ -84,10 +85,10 @@ export function Timeline() {
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <Clock className="w-6 h-6 text-blue-400" />
-            Early Action Pre-Positioning Timeline
+            {UI_COPY.pages.preparationTitle}
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Proactive operational staging based on Open-Meteo flood forecast ETAs and vulnerability indicators
+            {UI_COPY.pages.preparationDescription}
           </p>
         </div>
 
@@ -133,7 +134,7 @@ export function Timeline() {
               <span className="text-xs font-bold text-slate-200 mt-1">{item.zone_name}</span>
               <span className="text-[11px] text-slate-500 font-mono">Zone ID: {item.zone_id}</span>
               <div className="text-[11px] text-slate-400 mt-2">
-                Impact Audience: <strong className="text-white">{item.target_count}</strong> households
+              {UI_COPY.preparation.households}: <strong className="text-white">{item.target_count}</strong>
               </div>
             </div>
 
@@ -145,13 +146,13 @@ export function Timeline() {
               </div>
 
               <div className="text-xs bg-slate-950 p-3 rounded-xl border border-slate-800/80 text-slate-300 leading-relaxed">
-                <strong className="text-blue-300">Operational Rationale:</strong> {item.rationale}
+                <strong className="text-blue-300">{UI_COPY.preparation.why}</strong> {item.rationale}
               </div>
 
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <span className="text-[11px] text-slate-400 font-semibold flex items-center gap-1">
                   <Truck className="w-3.5 h-3.5 text-emerald-400" />
-                  Recommended Assets:
+                  {UI_COPY.preparation.suggested}
                 </span>
                 {item.recommended_assets.map((asset, aidx) => (
                   <span

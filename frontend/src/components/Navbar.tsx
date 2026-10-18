@@ -14,6 +14,7 @@ import {
   FileText,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
+import { UI_COPY } from "@/lib/ui-copy";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -34,11 +35,11 @@ export function Navbar() {
   }, []);
 
   const navLinks = [
-    { href: "/", label: "EOC Operations", icon: ShieldAlert },
-    { href: "/priorities", label: "Priority Queue", icon: ListOrdered },
-    { href: "/resources", label: "Resource Board", icon: Truck },
-    { href: "/prepositioning", label: "Pre-positioning", icon: Clock },
-    { href: "/reports", label: "Report Feed", icon: FileText },
+    { href: "/", label: UI_COPY.navigation.home, icon: ShieldAlert },
+    { href: "/priorities", label: UI_COPY.navigation.priorities, icon: ListOrdered },
+    { href: "/resources", label: UI_COPY.navigation.resources, icon: Truck },
+    { href: "/prepositioning", label: UI_COPY.navigation.preparation, icon: Clock },
+    { href: "/reports", label: UI_COPY.navigation.reports, icon: FileText },
   ];
 
   return (
@@ -104,7 +105,7 @@ export function Navbar() {
           className="relative px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-amber-600/25 transition"
         >
           <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
-          Field PWA
+          {UI_COPY.navigation.field}
           {offlineQueueCount > 0 && (
             <span className="ml-1 bg-white text-amber-700 text-[10px] font-extrabold px-1.5 py-0.2 rounded-full">
               {offlineQueueCount}

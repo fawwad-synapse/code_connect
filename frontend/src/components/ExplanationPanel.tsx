@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { X, ShieldAlert, BarChart3, HelpCircle, Activity, HeartPulse, Home, Radio, Sparkles } from "lucide-react";
 import { PriorityItem, api } from "@/lib/api";
 import { ConfidenceBadge } from "./ConfidenceBadge";
+import { UI_COPY } from "@/lib/ui-copy";
 
 interface Props {
   item: PriorityItem | null;
@@ -64,7 +65,7 @@ export function ExplanationPanel({ item, onClose }: Props) {
         {/* Priority Score Callout */}
         <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
           <div>
-            <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Priority Triage Score</div>
+            <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold" title={UI_COPY.terms.helpPriorityHelp}>{UI_COPY.terms.helpPriority}</div>
             <div className="text-3xl font-black text-rose-500 mt-0.5">{item.priority_score}<span className="text-sm text-slate-500"> / 100</span></div>
             <div className="text-xs text-rose-400 mt-1 font-medium">{item.summary_reason}</div>
           </div>
@@ -77,7 +78,7 @@ export function ExplanationPanel({ item, onClose }: Props) {
         <div className="space-y-3">
           <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
             <BarChart3 className="w-4 h-4 text-blue-400" />
-            Mathematical Factor Breakdown
+            Why this household is ranked here
           </h3>
 
           <div className="space-y-2.5">
@@ -102,16 +103,16 @@ export function ExplanationPanel({ item, onClose }: Props) {
         <div className="bg-blue-950/30 border border-blue-900/40 rounded-xl p-4 space-y-2">
           <div className="flex items-center gap-2 text-xs font-bold text-blue-400">
             <Sparkles className="w-4 h-4 text-blue-400" />
-            <span>EXPLAINABLE RATIONALE:</span>
+            <span>Why help may be needed:</span>
           </div>
           <p className="text-xs text-slate-300 leading-relaxed font-sans">
-            {loadingExpl ? "Synthesizing factor analysis..." : explanation}
+            {loadingExpl ? UI_COPY.status.loading : explanation}
           </p>
         </div>
 
         {/* Demographics & Household Indicators */}
         <div className="space-y-3">
-          <h3 className="text-sm font-bold text-slate-200">Household Vulnerability Profile</h3>
+          <h3 className="text-sm font-bold text-slate-200">Household support needs</h3>
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
               <span className="text-slate-400 block text-2xs">Age</span>
@@ -130,11 +131,11 @@ export function ExplanationPanel({ item, onClose }: Props) {
               <span className="font-semibold text-white">{item.chronic_medical_need ? "Chronic Dependency" : "Standard"}</span>
             </div>
             <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-              <span className="text-slate-400 block text-2xs">Housing Fragility</span>
+              <span className="text-slate-400 block text-2xs">Home and floor</span>
               <span className="font-semibold text-white capitalize">{item.housing_type} (Floor {item.floor_level})</span>
             </div>
             <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-              <span className="text-slate-400 block text-2xs">Warning Reach</span>
+              <span className="text-slate-400 block text-2xs" title={UI_COPY.terms.peopleNotReachedHelp}>Warning contact</span>
               <span className="font-semibold text-white">{item.has_smartphone ? `Smartphone (${Math.round(item.signal_quality * 100)}% signal)` : "No Smartphone (SMS/Manual)"}</span>
             </div>
           </div>
@@ -145,11 +146,11 @@ export function ExplanationPanel({ item, onClose }: Props) {
           <div className="bg-amber-950/20 border border-amber-900/40 rounded-xl p-3.5 space-y-1">
             <div className="flex items-center gap-1.5 text-xs font-bold text-amber-400">
               <HelpCircle className="w-4 h-4 text-amber-400" />
-              <span>Conservative Safety Assumptions Active</span>
+              <span>Some details are missing; using a cautious estimate</span>
             </div>
             <p className="text-2xs text-slate-400 leading-relaxed">
-              Survey data missing for: <span className="text-amber-300 font-mono">{item.missing_fields.join(", ")}</span>.
-              RescueRank defaults to assuming higher vulnerability to prevent under-serving residents in danger.
+              Missing details: <span className="text-amber-300 font-mono">{item.missing_fields.join(", ")}</span>.
+              The estimate is cautious so people who may need help are not overlooked.
             </p>
           </div>
         )}
@@ -161,7 +162,7 @@ export function ExplanationPanel({ item, onClose }: Props) {
           href="/resources"
           className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs py-2.5 rounded-lg text-center transition"
         >
-          Assign Vehicle in Resource Board
+          Choose a team on the Rescue Teams page
         </a>
       </div>
     </div>

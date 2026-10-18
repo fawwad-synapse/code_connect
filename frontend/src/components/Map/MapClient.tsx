@@ -14,6 +14,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { api, ZoneItem, PriorityItem, ResourceItem, ShelterItem, BlockedRoadItem, WaterwayItem, AssignmentMapItem } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
+import { UI_COPY } from "@/lib/ui-copy";
 
 // Fix Leaflet marker icons in React
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -179,10 +180,10 @@ export function MapClient({
                     <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px; color: #38bdf8;">
                       ${z.name} ${z.is_silent_zone ? '<span style="color: #c084fc; font-size: 10px; border: 1px solid #c084fc; padding: 1px 4px; border-radius: 4px;">SILENT ZONE</span>' : ''}
                     </div>
-                    <div><b>Predicted Depth:</b> ${z.hazard_forecast?.depth_m_forecast}m</div>
-                    <div><b>ETA:</b> ~${z.hazard_forecast?.eta_hours} hours</div>
-                    <div><b>Elevation:</b> ${z.elevation_m}m | <b>Deprivation:</b> ${Math.round(z.deprivation_index * 100)}%</div>
-                    <div><b>Crowd Reports:</b> ${z.report_count}</div>
+                    <div><b>${UI_COPY.terms.floodRisk}:</b> ${z.hazard_forecast?.depth_m_forecast}m</div>
+                    <div><b>Time until expected:</b> about ${z.hazard_forecast?.eta_hours} hours</div>
+                    <div><b>Ground height:</b> ${z.elevation_m}m</div>
+                    <div><b>Reports received:</b> ${z.report_count}</div>
                   </div>
                 `;
                 layer.bindPopup(popupContent);
@@ -203,10 +204,10 @@ export function MapClient({
             >
               <Popup>
                 <div className="text-xs text-slate-100">
-                  <div className="font-bold text-rose-400 mb-1">Road closure: {road.name}</div>
+                <div className="font-bold text-rose-400 mb-1">Blocked road: {road.name}</div>
                   <span className="inline-block rounded border border-amber-500/40 bg-amber-500/10 px-1 py-0.5 text-[9px] font-bold text-amber-300">SIMULATED</span>
                   <div>Status: {road.status.toUpperCase()}</div>
-                  <div>Inundation Depth: {road.depth_m}m</div>
+                <div>Water level: {road.depth_m}m</div>
                 </div>
               </Popup>
             </Polyline>
@@ -218,7 +219,7 @@ export function MapClient({
             <Marker key={s.id} position={[s.location.lat, s.location.lng]}>
               <Popup>
                 <div className="text-xs text-slate-100">
-                  <div className="font-bold text-blue-400 mb-1">Shelter: {s.name}</div>
+                  <div className="font-bold text-blue-400 mb-1">Safe shelter: {s.name}</div>
                   <div>Capacity: {s.capacity} beds</div>
                   <div>Occupancy: {s.current_occupancy} ({s.occupancy_rate}%)</div>
                   <div>Accessible: {s.accessible ? "Yes (Ground Accessible)" : "Restricted Access"}</div>
@@ -234,7 +235,7 @@ export function MapClient({
               <Popup>
                 <div className="text-xs text-slate-100">
                   <div className="font-bold text-emerald-400 mb-1">
-                    Rescue unit: {r.name}
+                    Rescue team: {r.name}
                   </div>
                   <div>Type: {r.type.toUpperCase()}</div>
                   <div>Capacity: {r.capacity} persons</div>
@@ -259,7 +260,7 @@ export function MapClient({
             <Popup>
               <div className="text-xs text-slate-100">
                 <strong>{assignment.resource_name}</strong> to {assignment.target_id}<br />
-                ETA: {assignment.transit_time_min} min
+                {UI_COPY.terms.estimatedArrival}: {assignment.transit_time_min} min
               </div>
             </Popup>
           </Polyline>
@@ -287,9 +288,9 @@ export function MapClient({
               <Popup>
                 <div className="text-xs text-slate-100">
                   <div className="font-bold text-white mb-0.5">{p.id} ({p.zone_name})</div>
-                  <div className="font-bold text-rose-400">Score: {p.priority_score}/100</div>
-                  <div>Age: {p.age} {p.mobility_impaired && "| Immobile"} {p.chronic_medical_need && "| Medical Need"}</div>
-                  <div>Warning Gap: {Math.round(p.warning_gap * 100)}%</div>
+                  <div className="font-bold text-rose-400" title={UI_COPY.terms.helpPriorityHelp}>{UI_COPY.terms.helpPriority}: {p.priority_score}/100</div>
+                  <div>Age: {p.age} {p.mobility_impaired && "| Needs help moving"} {p.chronic_medical_need && "| Medical help needed"}</div>
+                  <div title={UI_COPY.terms.peopleNotReachedHelp}>{UI_COPY.terms.peopleNotReached}: {Math.round(p.warning_gap * 100)}%</div>
                   {p.water_proximity_m != null && <div>Nearest waterway: {Math.round(p.water_proximity_m)}m</div>}
                   <button
                     onClick={() => {
@@ -298,7 +299,7 @@ export function MapClient({
                     }}
                     className="mt-1.5 w-full bg-blue-600 text-white py-1 px-2 rounded font-semibold text-2xs hover:bg-blue-500"
                   >
-                    View Explanation Breakdown
+                    {UI_COPY.actions.viewDetails}
                   </button>
                 </div>
               </Popup>

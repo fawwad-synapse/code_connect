@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { api, ResourceItem, ShelterItem } from "@/lib/api";
 import { toast } from "sonner";
+import { UI_COPY } from "@/lib/ui-copy";
 
 interface AssignmentResult {
   id: string;
@@ -176,10 +177,10 @@ export function ResourceBoard() {
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <Truck className="w-6 h-6 text-blue-500" />
-            Resource Coordination & Dispatch Board
+            Rescue teams and assignments
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Google OR-Tools Mixed-Integer Programming with strict medical constraints and transparent conflict trade-offs
+            Review available teams and recommend matches by passenger space, travel time, and medical needs.
           </p>
         </div>
 
@@ -199,7 +200,7 @@ export function ResourceBoard() {
             className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-lg text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/30 transition disabled:opacity-50"
           >
             <Sparkles className={`w-4 h-4 ${optimizing ? "animate-spin" : ""}`} />
-            {optimizing ? "Solving MIP Matrix..." : "Run OR-Tools Dispatch"}
+            {optimizing ? "Preparing team recommendations..." : UI_COPY.actions.recommendAssignments}
           </button>
         </div>
       </div>
@@ -213,7 +214,7 @@ export function ResourceBoard() {
               <Layers className="w-4 h-4 text-blue-400" />
               Available Emergency Units ({resources.length})
             </h3>
-            <span className="text-xs text-slate-500">Live Telemetry</span>
+            <span className="text-xs text-slate-500">{UI_COPY.resources.currentTeams}</span>
           </div>
 
           <div className="space-y-2.5 max-h-[620px] overflow-y-auto pr-1">
@@ -236,9 +237,9 @@ export function ResourceBoard() {
                       )}
                     </div>
                     <div className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
-                      <span>Type: {res.type}</span>
+                      <span>{UI_COPY.resources.teamType}: {res.type}</span>
                       <span>|</span>
-                      <span>Cap: {res.capacity} pers</span>
+                      <span>{UI_COPY.resources.teamCapacity}: {res.capacity} people</span>
                     </div>
                   </div>
                 </div>
@@ -311,7 +312,7 @@ export function ResourceBoard() {
               Active Dispatch Assignments ({assignments.length})
             </h3>
             <span className="text-xs text-slate-400">
-              {assignments.length > 0 ? "Solver Matched" : "Awaiting Optimization Run"}
+              {assignments.length > 0 ? UI_COPY.resources.teamRecommendations : UI_COPY.resources.noRecommendationStatus}
             </span>
           </div>
 
@@ -321,10 +322,9 @@ export function ResourceBoard() {
                 <Truck className="w-6 h-6" />
               </div>
               <div className="max-w-md mx-auto space-y-1">
-                <h4 className="text-base font-bold text-white">No Active Dispatches Generated Yet</h4>
+                <h4 className="text-base font-bold text-white">{UI_COPY.resources.noRecommendations}</h4>
                 <p className="text-xs text-slate-400">
-                  Click &quot;Run OR-Tools Dispatch&quot; above to solve the optimal assignment problem matching high-priority
-                  households to available rescue teams based on transit time and medical capabilities.
+                  {UI_COPY.resources.emptyHelp}
                 </p>
               </div>
               <button
@@ -333,7 +333,7 @@ export function ResourceBoard() {
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold inline-flex items-center gap-2 shadow-lg shadow-blue-500/20"
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                Trigger Initial Dispatch
+                {UI_COPY.actions.recommendAssignments}
               </button>
             </div>
           ) : (
@@ -362,10 +362,10 @@ export function ResourceBoard() {
                     <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 pt-0.5">
                       <span className="flex items-center gap-1 text-slate-300">
                         <Clock className="w-3.5 h-3.5 text-blue-400" />
-                        ETA ~{asgn.transit_time_min} mins
+                        Arrives in about {asgn.transit_time_min} min
                       </span>
                       <span>|</span>
-                      <span>Priority Score: <strong className="text-rose-400">{asgn.priority_score.toFixed(1)}</strong></span>
+                      <span title={UI_COPY.terms.helpPriorityHelp}>Help priority: <strong className="text-rose-400">{asgn.priority_score.toFixed(1)}</strong></span>
                       <span>|</span>
                       <span className={asgn.medical_matched ? "text-emerald-400 font-medium" : "text-slate-400"}>
                         {asgn.medical_matched ? "Medical Certified Match" : "Standard Evacuation"}
@@ -385,7 +385,7 @@ export function ResourceBoard() {
                       className="px-3 py-1.5 bg-slate-800 hover:bg-amber-900/40 text-slate-300 hover:text-amber-200 border border-slate-700 hover:border-amber-700/50 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
                     >
                       <UserCheck className="w-3.5 h-3.5" />
-                      Override
+                      {UI_COPY.resources.changeRecord}
                     </button>
                   </div>
                 </div>
@@ -395,7 +395,7 @@ export function ResourceBoard() {
 
           {hasOptimization && unassignedTargets.length > 0 && (
             <div className="rounded-xl border border-amber-900/40 bg-amber-950/10 p-4 space-y-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-amber-300">Unassigned households and reasons</h3>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-amber-300">{UI_COPY.resources.unassigned}</h3>
               <div className="max-h-48 overflow-y-auto space-y-2">
                 {unassignedTargets.map((target) => (
                   <div key={target.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
@@ -421,7 +421,7 @@ export function ResourceBoard() {
                     className="bg-rose-950/20 border border-rose-900/40 p-4 rounded-xl space-y-2 text-xs"
                   >
                     <div className="flex items-center justify-between font-semibold text-rose-300">
-                      <span>Contested Unit: {conf.resource_name}</span>
+                      <span>{UI_COPY.resources.teamsNeeded}: {conf.resource_name}</span>
                       <span className="text-slate-400 font-mono">Score Delta: +{conf.score_delta.toFixed(1)}</span>
                     </div>
                     <p className="text-slate-300 leading-relaxed">{conf.resolution_reason}</p>
@@ -432,7 +432,7 @@ export function ResourceBoard() {
                             Candidate #{i + 1}: {tgt.address}
                           </div>
                           <div className="text-[10px] text-slate-400 mt-0.5">
-                            Priority: {tgt.score} | Medical Need: {tgt.medical_need ? "YES" : "NO"}
+                            Help priority: {tgt.score} | Medical help: {tgt.medical_need ? "Needed" : "Not flagged"}
                           </div>
                         </div>
                       ))}
@@ -452,7 +452,7 @@ export function ResourceBoard() {
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <UserCheck className="w-5 h-5 text-amber-400" />
-                <h3 className="text-base font-bold text-white">Human Coordinator Override</h3>
+                <h3 className="text-base font-bold text-white">{UI_COPY.resources.changeHeading}</h3>
               </div>
               <button
                 onClick={() => setOverrideModalOpen(false)}
@@ -470,14 +470,14 @@ export function ResourceBoard() {
                 <strong>Current Target:</strong> {selectedAssignment.target_address || selectedAssignment.target_id}
               </div>
               <div>
-                <strong>Priority Score:</strong> {selectedAssignment.priority_score.toFixed(1)}
+                  <strong>Help priority:</strong> {selectedAssignment.priority_score.toFixed(1)}
               </div>
             </div>
 
             <form onSubmit={handleSubmitOverride} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Coordinator Name / Badge ID <span className="text-rose-400">*</span>
+                  Coordinator name or ID <span className="text-rose-400">*</span>
                 </label>
                 <input
                   type="text"
@@ -491,12 +491,12 @@ export function ResourceBoard() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Mandatory Operational Rationale <span className="text-rose-400">*</span>
+                  {UI_COPY.resources.changeWhy} <span className="text-rose-400">*</span>
                 </label>
                 <textarea
                   required
                   rows={3}
-                  placeholder="Explain why the automated MIP assignment is being overridden (e.g., direct field intelligence of collapsed bridge, oxygen cylinder shortage, etc.)"
+                  placeholder={UI_COPY.resources.changeWhyPlaceholder}
                   value={overrideReason}
                   onChange={(e) => setOverrideReason(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-lg px-3 py-2 text-xs text-white outline-none"
@@ -517,7 +517,7 @@ export function ResourceBoard() {
                   className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-amber-600/20 disabled:opacity-50"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  {submittingOverride ? "Recording..." : "Confirm & Log Override"}
+                  {submittingOverride ? "Saving note..." : "Confirm and record override"}
                 </button>
               </div>
             </form>

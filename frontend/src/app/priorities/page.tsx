@@ -8,6 +8,7 @@ import { PriorityList } from "@/components/PriorityList";
 import { ExplanationPanel } from "@/components/ExplanationPanel";
 import { useAppStore } from "@/lib/store";
 import { toast } from "sonner";
+import { UI_COPY } from "@/lib/ui-copy";
 
 export default function PrioritiesPage() {
   const [priorities, setPriorities] = useState<PriorityItem[]>([]);
@@ -50,10 +51,10 @@ export default function PrioritiesPage() {
           <div>
             <h1 className="text-xl font-bold text-white flex items-center gap-2">
               <ListOrdered className="w-5 h-5 text-blue-500" />
-              Triage Priority Ledger
+              {UI_COPY.pages.prioritiesTitle}
             </h1>
             <p className="text-xs text-slate-400">
-              Total {totalCount} households ranked by weighted vulnerability, warning gap, and hazard exposure
+              {totalCount} households sorted by flood risk and extra support needs.
             </p>
           </div>
         </div>
@@ -65,7 +66,7 @@ export default function PrioritiesPage() {
             className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border border-slate-700"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-            Refresh Triage Ledger
+            {UI_COPY.actions.refresh}
           </button>
         </div>
       </div>

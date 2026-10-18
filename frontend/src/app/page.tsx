@@ -20,6 +20,7 @@ import { ConfidenceBadge } from "@/components/ConfidenceBadge";
 import { api, PriorityItem } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
 import { toast } from "sonner";
+import { UI_COPY } from "@/lib/ui-copy";
 
 export default function OperationsCenterPage() {
   const [priorities, setPriorities] = useState<PriorityItem[]>([]);
@@ -113,8 +114,8 @@ export default function OperationsCenterPage() {
       <section className="rounded-xl border border-cyan-900/70 bg-slate-900/90 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-sm font-bold text-white">What-if flood level</h2>
-            <p className="text-xs text-slate-400">Overrides forecast depth for ranking only; it does not change stored forecasts.</p>
+            <h2 className="text-sm font-bold text-white">{UI_COPY.home.floodPreview}</h2>
+            <p className="text-xs text-slate-400">{UI_COPY.home.floodPreviewHelp}</p>
           </div>
           <label htmlFor="flood-level" className="text-sm font-bold text-cyan-300">{floodLevel}%</label>
         </div>
@@ -150,46 +151,46 @@ export default function OperationsCenterPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-xl shadow-lg">
           <div className="flex items-center justify-between text-slate-400 text-xs mb-1 font-semibold uppercase tracking-wider">
-            <span>Critical Priorities</span>
+            <span>{UI_COPY.home.urgentHouseholds}</span>
             <ShieldAlert className="w-4 h-4 text-rose-500" />
           </div>
           <div className="text-2xl md:text-3xl font-black text-white">{totalCount} Cases</div>
           <div className="text-xs text-rose-400 mt-1 flex items-center gap-1 font-medium">
             <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
-            Top Triage Cohort (Score &ge; 60)
+            {UI_COPY.home.highestPriority}
           </div>
         </div>
 
         <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-xl shadow-lg">
           <div className="flex items-center justify-between text-slate-400 text-xs mb-1 font-semibold uppercase tracking-wider">
-            <span>Silent Zones Flagged</span>
+            <span>{UI_COPY.home.lowReportAreas}</span>
             <AlertTriangle className="w-4 h-4 text-amber-500" />
           </div>
           <div className="text-2xl md:text-3xl font-black text-amber-400">1 Zone (Malir)</div>
           <div className="text-xs text-slate-400 mt-1 font-medium">
-            High Hazard + Zero Reports (Uncertainty Uplift)
+            {UI_COPY.home.lowReportHelp}
           </div>
         </div>
 
         <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-xl shadow-lg">
           <div className="flex items-center justify-between text-slate-400 text-xs mb-1 font-semibold uppercase tracking-wider">
-            <span>Rescue Units</span>
+            <span>{UI_COPY.home.rescueTeams}</span>
             <Truck className="w-4 h-4 text-emerald-500" />
           </div>
           <div className="text-2xl md:text-3xl font-black text-white">{stats.activeAssets} Ready</div>
           <div className="text-xs text-emerald-400 mt-1 font-medium">
-            Boats, Ambulances & 4x4 Evac Units
+            <span>{UI_COPY.home.teamInventory}</span> <span className="text-amber-300">({UI_COPY.status.simulated})</span>
           </div>
         </div>
 
         <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-xl shadow-lg">
           <div className="flex items-center justify-between text-slate-400 text-xs mb-1 font-semibold uppercase tracking-wider">
-            <span>Emergency Shelters</span>
+            <span>{UI_COPY.home.shelters}</span>
             <Users className="w-4 h-4 text-blue-500" />
           </div>
           <div className="text-2xl md:text-3xl font-black text-white">{stats.shelterCount} Facilities</div>
           <div className="text-xs text-blue-400 mt-1 font-medium">
-            68% Avg Capacity Occupied
+            <span>{UI_COPY.home.shelterCapacity}</span> <span className="text-amber-300">({UI_COPY.status.simulated})</span>
           </div>
         </div>
       </div>
@@ -203,18 +204,18 @@ export default function OperationsCenterPage() {
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
                 <Layers className="w-4 h-4 text-blue-400" />
-                Karachi Flood Geospatial Layers:
+                {UI_COPY.home.mapTitle}
               </span>
             </div>
 
             <div className="flex flex-wrap items-center gap-1.5">
               {(
                 [
-                  { id: "zones", label: "Flood Zones" },
-                  { id: "households", label: "Priorities" },
-                  { id: "shelters", label: "Shelters" },
-                  { id: "resources", label: "Rescue Units" },
-                  { id: "blockedRoads", label: "Road Closures" },
+                  { id: "zones", label: "Flood risk areas" },
+                  { id: "households", label: "Households" },
+                  { id: "shelters", label: "Safe shelters" },
+                  { id: "resources", label: "Rescue teams" },
+                  { id: "blockedRoads", label: "Blocked roads" },
                   { id: "waterways", label: "Waterways" },
                 ] as const
               ).map((layer) => (
@@ -246,16 +247,17 @@ export default function OperationsCenterPage() {
             <div>
               <h2 className="text-sm font-bold text-white flex items-center gap-2">
                 <ShieldAlert className="w-4 h-4 text-rose-500" />
-                Top Response Queue
+                {UI_COPY.home.queueTitle}
               </h2>
-              <p className="text-[11px] text-slate-400">Ranked by Transparent Priority Score</p>
+              <p className="text-[11px] text-slate-400">{UI_COPY.home.queueHelp}</p>
             </div>
 
             <button
               onClick={() => fetchDashboardData()}
               disabled={loading}
               className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
-              title="Refresh Queue"
+                  title={UI_COPY.actions.refresh}
+                  aria-label={UI_COPY.actions.refresh}
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
             </button>
@@ -293,9 +295,9 @@ export default function OperationsCenterPage() {
 
                 <div className="flex items-center justify-between text-[10px] text-slate-400">
                   <div className="flex items-center gap-2">
-                    <span>Vuln: {(item.vulnerability_index * 100).toFixed(0)}%</span>
+                    <span>{UI_COPY.home.supportNeeds}: {(item.vulnerability_index * 100).toFixed(0)}%</span>
                     <span>|</span>
-                    <span>Gap: {(item.warning_gap * 100).toFixed(0)}%</span>
+                    <span>People not reached: {(item.warning_gap * 100).toFixed(0)}%</span>
                   </div>
                   <ConfidenceBadge
                     level={item.confidence_level}

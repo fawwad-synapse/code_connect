@@ -17,6 +17,7 @@ import {
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { UI_COPY } from "@/lib/ui-copy";
 
 interface ReportItem {
   id: string;
@@ -60,7 +61,7 @@ export default function ReportsPage() {
     },
     {
       label: "Urdu Script (Flood Emergency)",
-      text: "ملیر ندی کا بند ٹوٹ گیا ہے، گھروں میں پانی داخل ہو رہا ہے، فوری مدد چاہیے",
+      text: UI_COPY.reports.sampleRomanUrdu,
       lat: "24.895",
       lng: "67.195",
     },
@@ -103,7 +104,7 @@ export default function ReportsPage() {
       toast.success(
         res.is_duplicate
           ? `Report ingested & clustered into cluster #${res.cluster_id || "DEDUPE"}`
-          : "Report successfully processed by LangGraph Multilingual Pipeline!"
+          : "Report sent for review."
       );
       setRawText("");
       fetchReports();
@@ -128,10 +129,10 @@ export default function ReportsPage() {
           <div>
             <h1 className="text-xl font-bold text-white flex items-center gap-2">
               <FileText className="w-5 h-5 text-blue-500" />
-              Multilingual Incident Ingestion & Deduplication
+              {UI_COPY.pages.reportsTitle}
             </h1>
             <p className="text-xs text-slate-400">
-              LangGraph State Machine: Multilingual parser (English, Urdu, Roman Urdu), spatial deduplication & clustering
+              Enter a message in English or Roman Urdu, add its location, and send it to the response team.
             </p>
           </div>
         </div>
@@ -154,14 +155,14 @@ export default function ReportsPage() {
               <Sparkles className="w-4 h-4 text-blue-400" />
               Incident Intake Form
             </h2>
-            <span className="text-[11px] text-slate-500">Live LangGraph Engine</span>
+            <span className="text-[11px] text-slate-500">Example messages are samples, not live incidents.</span>
           </div>
 
           {/* Preset Prompts */}
           <div className="space-y-1.5">
             <label className="text-[11px] font-semibold text-slate-400 flex items-center gap-1">
               <Languages className="w-3.5 h-3.5 text-blue-400" />
-              Test Multilingual Presets:
+              {UI_COPY.reports.presetLabel}:
             </label>
             <div className="flex flex-wrap gap-1.5">
               {sampleMessages.map((sample, idx) => (
@@ -184,21 +185,21 @@ export default function ReportsPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Emergency Message / Report Content <span className="text-rose-400">*</span>
+                {UI_COPY.reportForm.prompt} <span className="text-rose-400">*</span>
               </label>
               <textarea
                 required
                 rows={4}
                 value={rawText}
                 onChange={(e) => setRawText(e.target.value)}
-                placeholder="Enter distress report in Urdu, Roman Urdu, or English..."
+                placeholder={UI_COPY.reportForm.promptHelp}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Latitude</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">{UI_COPY.reportForm.latitude}</label>
                 <input
                   type="text"
                   value={lat}
@@ -207,7 +208,7 @@ export default function ReportsPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Longitude</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">{UI_COPY.reportForm.longitude}</label>
                 <input
                   type="text"
                   value={lng}
@@ -218,7 +219,7 @@ export default function ReportsPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Channel Source</label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">{UI_COPY.reportForm.source}</label>
               <select
                 value={source}
                 onChange={(e) => setSource(e.target.value)}
@@ -237,7 +238,7 @@ export default function ReportsPage() {
               className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-600/25 transition disabled:opacity-50"
             >
               <Send className="w-3.5 h-3.5" />
-              {submitting ? "Processing through LangGraph Pipeline..." : "Submit Incident Report"}
+              {submitting ? "Sending report..." : UI_COPY.actions.submitReport}
             </button>
           </form>
         </div>
@@ -249,7 +250,7 @@ export default function ReportsPage() {
               <Layers className="w-4 h-4 text-emerald-400" />
               Processed Incident Feed ({reports.length})
             </h2>
-            <span className="text-[11px] text-slate-400">150m Haversine Deduplication</span>
+            <span className="text-[11px] text-slate-400">{UI_COPY.reports.feedHint}</span>
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-3 max-h-[580px] pr-1">
@@ -284,16 +285,16 @@ export default function ReportsPage() {
                 {rep.parsed_data && (
                   <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-400 pt-1 border-t border-slate-900">
                     {rep.parsed_data.hazard_type && (
-                      <span>Hazard: <strong className="text-slate-200">{rep.parsed_data.hazard_type}</strong></span>
+                      <span>{UI_COPY.reportForm.emergencyType}: <strong className="text-slate-200">{rep.parsed_data.hazard_type}</strong></span>
                     )}
                     {rep.parsed_data.water_depth_m && (
-                      <span>Depth: <strong className="text-blue-400">{rep.parsed_data.water_depth_m}m</strong></span>
+                      <span>{UI_COPY.reportForm.waterLevel}: <strong className="text-blue-400">{rep.parsed_data.water_depth_m}m</strong></span>
                     )}
                     {rep.parsed_data.trapped_count && (
-                      <span>Trapped: <strong className="text-rose-400">{rep.parsed_data.trapped_count}</strong></span>
+                      <span>{UI_COPY.reportForm.peopleTrapped}: <strong className="text-rose-400">{rep.parsed_data.trapped_count}</strong></span>
                     )}
                     {rep.parsed_data.medical_need && (
-                      <span className="text-rose-400 font-bold">Medical Need Identified</span>
+                      <span className="text-rose-400 font-bold">{UI_COPY.reportForm.medicalNeeded}</span>
                     )}
                   </div>
                 )}
