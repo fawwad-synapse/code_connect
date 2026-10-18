@@ -92,6 +92,10 @@ export function MapClient({
   const blockedRoads = propBlockedRoads && propBlockedRoads.length > 0 ? propBlockedRoads : internalBlockedRoads;
   const visiblePriorities = priorities.slice(0, 150);
   const displayedTotal = propPriorities && propPriorities.length > 0 ? propPriorities.length : priorityTotal;
+  const isHeatwave = activeHazard === "heatwave";
+  const mapWords = isHeatwave
+    ? { risk: "Heat risk", forecast: "Peak heat index", shelter: "Cooling center", resource: "Heat response unit", time: "Time until peak heat" }
+    : { risk: "Flood risk", forecast: "Forecast water depth", shelter: "Safe shelter", resource: "Rescue team", time: "Time until expected" };
 
   const getPriorityColor = (item: PriorityItem) => {
     if (item.priority_score >= 70) return "#ef4444"; // Red for critical
@@ -107,9 +111,16 @@ export function MapClient({
   const getZoneStyle = (feature: any) => {
     const isSilent = feature?.properties?.is_silent_zone;
     const depth = feature?.properties?.hazard_forecast?.depth_m_forecast || 0.0;
+    const heat = feature?.properties?.hazard_forecast?.heat_index_c || 42.0;
 
     let style: L.PathOptions;
-    if (depth >= 1.2) {
+    if (isHeatwave && heat >= 48) {
+      style = { fillColor: "#dc2626", weight: 2, opacity: 0.8, color: "#f87171", fillOpacity: 0.35 };
+    } else if (isHeatwave && heat >= 42) {
+      style = { fillColor: "#ea580c", weight: 1.5, opacity: 0.8, color: "#fb923c", fillOpacity: 0.25 };
+    } else if (isHeatwave) {
+      style = { fillColor: "#eab308", weight: 1.5, opacity: 0.7, color: "#fde047", fillOpacity: 0.2 };
+    } else if (depth >= 1.2) {
       style = {
         fillColor: "#dc2626",
         weight: 2,
@@ -154,7 +165,7 @@ export function MapClient({
         />
 
         {/* Waterway exposure layer: synthetic hackathon data now, replaceable with OSM later. */}
-        {mapLayers.waterways && waterways.map((waterway) => (
+        {!isHeatwave && mapLayers.waterways && waterways.map((waterway) => (
           <GeoJSON
             key={waterway.id}
             data={{ type: "Feature", properties: waterway, geometry: waterway.geometry } as any}
@@ -183,8 +194,8 @@ export function MapClient({
                     <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px; color: #38bdf8;">
                       ${z.name} ${z.is_silent_zone ? `<span style="color: #c084fc; font-size: 10px; border: 1px solid #c084fc; padding: 1px 4px; border-radius: 4px;">${UI_COPY.terms.silentArea}</span>` : ''}
                     </div>
-                    <div><b>${UI_COPY.terms.floodRisk}:</b> ${z.hazard_forecast?.depth_m_forecast}m</div>
-                    <div><b>Time until expected:</b> about ${z.hazard_forecast?.eta_hours} hours</div>
+                    <div><b>${mapWords.risk}:</b> ${isHeatwave ? `${z.hazard_forecast?.heat_index_c ?? 42}°C` : `${z.hazard_forecast?.depth_m_forecast}m`}</div>
+                    <div><b>${mapWords.time}:</b> about ${z.hazard_forecast?.eta_hours} hours</div>
                     <div><b>Ground height:</b> ${z.elevation_m}m</div>
                     <div><b>Reports received:</b> ${z.report_count}</div>
                   </div>
@@ -195,7 +206,7 @@ export function MapClient({
           ))}
 
         {/* Blocked Roads Layer */}
-        {mapLayers.blockedRoads &&
+        {!isHeatwave && mapLayers.blockedRoads &&
           blockedRoads.map((road) => (
             <Polyline
               key={road.id}
@@ -222,7 +233,7 @@ export function MapClient({
             <Marker key={s.id} position={[s.location.lat, s.location.lng]}>
               <Popup>
                 <div className="text-xs text-slate-100">
-                  <div className="font-bold text-blue-400 mb-1">Safe shelter: {s.name}</div>
+                  <div className="font-bold text-blue-400 mb-1">{mapWords.shelter}: {s.name}</div>
                   <div>Capacity: {s.capacity} beds</div>
                   <div>Occupancy: {s.current_occupancy} ({s.occupancy_rate}%)</div>
                   <div>Accessible: {s.accessible ? "Yes (Ground Accessible)" : "Restricted Access"}</div>
@@ -238,7 +249,7 @@ export function MapClient({
               <Popup>
                 <div className="text-xs text-slate-100">
                   <div className="font-bold text-emerald-400 mb-1">
-                    Rescue team: {r.name}
+                    {mapWords.resource}: {r.name}
                   </div>
                   <div>Type: {r.type.toUpperCase()}</div>
                   <div>Capacity: {r.capacity} persons</div>
@@ -296,7 +307,7 @@ export function MapClient({
                   {p.is_silent_zone && <div className="mt-1 flex items-center gap-1 text-purple-200"><CircleHelp aria-hidden="true" className="h-3 w-3" />{UI_COPY.risk.uncertain}</div>}
                   <div>Age: {p.age} {p.mobility_impaired && "| Needs help moving"} {p.chronic_medical_need && "| Medical help needed"}</div>
                   <div title={UI_COPY.terms.peopleNotReachedHelp}>{UI_COPY.terms.peopleNotReached}: {Math.round(p.warning_gap * 100)}%</div>
-                  {p.water_proximity_m != null && <div>Nearest waterway: {Math.round(p.water_proximity_m)}m</div>}
+                  {!isHeatwave && p.water_proximity_m != null && <div>Nearest waterway: {Math.round(p.water_proximity_m)}m</div>}
                   <button
                     onClick={() => {
                       setSelectedPriority(p);
@@ -323,24 +334,30 @@ export function MapClient({
             {UI_COPY.map.showingPins(visiblePriorities.length, displayedTotal)}
           </div>
         )}
-        <div className="border-t border-slate-700 pt-1 text-[11px] font-semibold text-white">Household help priority</div>
+        <div className="border-t border-slate-700 pt-1 text-[11px] font-semibold text-white">{mapWords.risk} — household priority</div>
         <div className="flex items-center justify-between gap-2"><RiskBadge score={70} compact /><span>70+</span></div>
         <div className="flex items-center justify-between gap-2"><RiskBadge score={45} compact /><span>45-69</span></div>
         <div className="flex items-center justify-between gap-2"><RiskBadge score={25} compact /><span>25-44</span></div>
         <div className="flex items-center justify-between gap-2"><RiskBadge score={24} compact /><span>0-24</span></div>
-        <div className="border-t border-slate-700 pt-1 text-[11px] font-semibold text-white">Forecast water depth</div>
-        <div className="flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-3 rounded bg-red-600" />{UI_COPY.map.deepWater}</div>
-        <div className="flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-3 rounded bg-orange-600" />{UI_COPY.map.risingWater}</div>
-        <div className="flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-3 rounded bg-blue-600" />{UI_COPY.map.lowerWater}</div>
+        <div className="border-t border-slate-700 pt-1 text-[11px] font-semibold text-white">{mapWords.forecast}</div>
+        {isHeatwave ? <>
+          <div className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-red-600" />Extreme heat (48°C+)</div>
+          <div className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-orange-600" />High heat (42–47°C)</div>
+          <div className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-yellow-500" />Moderate heat</div>
+        </> : <>
+          <div className="flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-3 rounded bg-red-600" />{UI_COPY.map.deepWater}</div>
+          <div className="flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-3 rounded bg-orange-600" />{UI_COPY.map.risingWater}</div>
+          <div className="flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-3 rounded bg-blue-600" />{UI_COPY.map.lowerWater}</div>
+        </>}
         <div className="flex items-center gap-1.5">
           <CircleHelp aria-hidden="true" className="h-3.5 w-3.5 text-purple-300" />
           <span>{UI_COPY.map.fewReports}</span>
         </div>
-        <div className="flex items-center gap-1.5 pt-1 border-t border-slate-800">
+        {!isHeatwave && <div className="flex items-center gap-1.5 pt-1 border-t border-slate-800">
           <span className="w-3 h-0.5 border-t-2 border-dashed border-rose-500"></span>
-          <span>{UI_COPY.map.blockedRoad}</span>
+          <span>{isHeatwave ? "Cooling/response units" : UI_COPY.map.blockedRoad}</span>
           <span className="rounded border border-amber-500/40 bg-amber-500/10 px-1 text-[9px] font-bold text-amber-300">SIMULATED</span>
-        </div>
+        </div>}
         <div className="flex items-center gap-1.5">
           <span>{UI_COPY.map.householdPins}</span>
           <span className="rounded border border-amber-500/40 bg-amber-500/10 px-1 text-[9px] font-bold text-amber-300">SYNTHETIC</span>

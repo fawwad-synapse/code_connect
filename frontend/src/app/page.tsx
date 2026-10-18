@@ -245,14 +245,14 @@ export default function OperationsCenterPage() {
             <div className="flex flex-wrap items-center gap-1.5">
               {(
                 [
-                  { id: "zones", label: "Flood risk areas" },
+                  { id: "zones", label: activeHazard === "heatwave" ? "Heat risk areas" : "Flood risk areas" },
                   { id: "households", label: "Households" },
-                  { id: "shelters", label: "Safe shelters" },
-                  { id: "resources", label: "Rescue teams" },
-                  { id: "blockedRoads", label: "Blocked roads" },
+                  { id: "shelters", label: activeHazard === "heatwave" ? "Cooling centers" : "Safe shelters" },
+                  { id: "resources", label: activeHazard === "heatwave" ? "Heat response units" : "Rescue teams" },
+                  { id: "blockedRoads", label: activeHazard === "heatwave" ? "Heat safety" : "Blocked roads" },
                   { id: "waterways", label: "Waterways" },
                 ] as const
-              ).map((layer) => (
+              ).filter((layer) => activeHazard === "flood" || !["blockedRoads", "waterways"].includes(layer.id)).map((layer) => (
                 <button
                   key={layer.id}
                   onClick={() => toggleLayer(layer.id)}
