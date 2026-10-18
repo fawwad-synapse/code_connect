@@ -1,0 +1,100 @@
+profiles:
+  flood:
+    display_name: Flood
+    icon: Waves
+    accent: cyan
+    slider:
+      label: Flood level
+      unit: "%"
+      minimum: 0
+      maximum: 100
+      default: 50
+    exposure_drivers:
+      - forecast water depth
+      - low elevation
+      - proximity to a mapped waterway
+    vulnerability_weights:
+      age_factor: 0.25
+      lives_alone: 0.15
+      mobility_impaired: 0.20
+      chronic_medical_need: 0.20
+      housing_fragility: 0.10
+      zone_deprivation: 0.10
+    urgency: Higher when forecast impact is closer; maximum urgency at impact and minimum after 12 hours.
+    resource_types:
+      boat:
+        display_name: Rescue boat
+        medical_eligible: false
+      truck:
+        display_name: High-clearance truck
+        medical_eligible: false
+      ambulance:
+        display_name: Ambulance
+        medical_eligible: true
+      volunteer_team:
+        display_name: Outreach team
+        medical_eligible: false
+    shelter_type_name: Emergency shelter
+    prepositioning_timeline:
+      - phase: T-12h
+        text: Confirm flood forecasts, shelter readiness and contact lists.
+      - phase: T-6h
+        text: Move boats and high-clearance vehicles near forecast flood zones.
+      - phase: T-3h
+        text: Contact high-risk households and start assisted evacuation.
+      - phase: T-0h
+        text: Dispatch rescue teams by ranked need and keep routes under review.
+    alerts:
+      english: "Flood warning for {zone}: expected water depth {value}m in {eta} hours. Move to higher ground and follow responder instructions."
+      roman_urdu: "{zone} mein sailaab ka khatra: {eta} ghantay mein pani {value} meter tak aa sakta hai. Buland jagah par jayen aur rescue team ki hidayat par amal karein."
+
+  heatwave:
+    display_name: Heatwave
+    icon: Sun
+    accent: orange
+    slider:
+      label: Peak heat index
+      unit: "°C"
+      minimum: 35
+      maximum: 55
+      default: 44
+    exposure_drivers:
+      - forecast heat index
+      - time until peak heat
+    vulnerability_weights:
+      age_factor: 0.22
+      lives_alone: 0.12
+      chronic_medical_need: 0.20
+      no_cooling: 0.14
+      heat_sensitive_housing: 0.10
+      unreliable_electricity: 0.08
+      unreliable_water: 0.06
+      outdoor_worker: 0.05
+      zone_deprivation: 0.03
+    urgency: Higher as the forecast peak heat approaches; maximum urgency at impact and minimum after 12 hours.
+    resource_types:
+      ambulance:
+        display_name: Heat emergency ambulance
+        medical_eligible: true
+      cooling_van:
+        display_name: Mobile cooling van
+        medical_eligible: false
+      water_van:
+        display_name: Drinking-water van
+        medical_eligible: false
+      outreach_team:
+        display_name: Heat outreach team
+        medical_eligible: false
+    shelter_type_name: Cooling center
+    prepositioning_timeline:
+      - phase: T-12h
+        text: Confirm heat forecast, cooling-center power and drinking-water stocks.
+      - phase: T-6h
+        text: Position cooling and water vans near the highest-risk neighbourhoods.
+      - phase: T-3h
+        text: Contact isolated residents and outdoor workers before peak heat.
+      - phase: T-0h
+        text: Dispatch medical and outreach teams and move critical residents to cooling centers.
+    alerts:
+      english: "Heatwave warning for {zone}: peak heat index {value}°C in {eta} hours. Drink water, avoid outdoor work and go to a cooling center if unwell."
+      roman_urdu: "{zone} mein shadeed garmi ka khatra: {eta} ghantay mein heat index {value}°C hoga. Pani piyen, bahar ka kaam rokein aur tabiyat kharab ho to cooling center jayen."
