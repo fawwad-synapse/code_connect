@@ -238,7 +238,7 @@ export default function OperationsCenterPage() {
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
                 <Layers className="w-4 h-4 text-blue-400" />
-                {UI_COPY.home.mapTitle}
+                {activeHazard === "heatwave" ? "Karachi Heatwave Response Layers" : UI_COPY.home.mapTitle}
               </span>
             </div>
 
