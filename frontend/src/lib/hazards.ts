@@ -5,7 +5,7 @@ export const HAZARDS: Record<Hazard, {
   sliderMax: number; sliderStep: number; sliderDefault: number; unit: string; accent: string;
 }> = {
   flood: { label: "Flood", icon: "🌊", sliderLabel: "Flood level", sliderMin: 0, sliderMax: 100, sliderStep: 1, sliderDefault: 50, unit: "%", accent: "cyan" },
-  heatwave: { label: "Heatwave", icon: "☀️", sliderLabel: "Peak heat index", sliderMin: 30, sliderMax: 60, sliderStep: 1, sliderDefault: 42, unit: "°C", accent: "orange" },
+  heatwave: { label: "Heatwave", icon: "☀️", sliderLabel: "Peak heat index", sliderMin: 35, sliderMax: 55, sliderStep: 1, sliderDefault: 44, unit: "°C", accent: "orange" },
 };
 
 export function isHazard(value: string | null): value is Hazard {
